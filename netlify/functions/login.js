@@ -4,7 +4,10 @@ const { createAdminToken } = require("./utils/auth");
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return methodNotAllowed();
 
-  const adminPassword = process.env.ADMIN_PASSWORD || "ornela2026";
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    return json(503, { error: "Configure ADMIN_PASSWORD no Netlify antes de usar o painel administrativo." });
+  }
 
   try {
     const body = JSON.parse(event.body || "{}");
