@@ -1,12 +1,15 @@
-# Ornela Semijoias
+# Ornela Semijoias — Netlify + Neon
 
-Catálogo digital da Ornela Semijoias, preparado para GitHub/Netlify com Neon PostgreSQL e Neon Storage.
+Catálogo migrado do Supabase para Neon PostgreSQL e Neon Storage.
 
-## Estrutura
-- `index.html`: catálogo
-- `admin_ornela.html`: painel administrativo
-- `netlify/functions/`: backend serverless
-- `neon_schema.sql`: esquema inicial do banco
-- `.env.example`: variáveis necessárias para implantação
+## Backend
+- `app_state` no Neon PostgreSQL guarda produtos, estoque, pedidos e configurações.
+- `ornela-produtos` no Neon Storage recebe novas imagens.
+- Netlify Functions protegem `DATABASE_URL` e credenciais do Storage; nenhuma senha fica no HTML.
+- `seed-state.json` contém a cópia dos dados do backup antigo e inicializa o banco automaticamente se ele estiver vazio.
 
-> As credenciais reais não devem ser salvas no repositório. Configure-as como variáveis de ambiente no provedor de hospedagem.
+## Variáveis no Netlify
+Copie os nomes de `.env.example` e preencha os valores no painel do Netlify. Nunca envie `.env` ao GitHub.
+
+## Publicação
+Conecte este repositório ao Netlify. O `netlify.toml` já roteia `/api/state`, `/api/order`, `/api/login` e `/api/upload-images`.

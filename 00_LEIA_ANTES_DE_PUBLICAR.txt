@@ -1,0 +1,10 @@
+ORNELA SEMIJOIAS - NETLIFY + NEON
+
+Este projeto foi migrado do Supabase para Neon PostgreSQL + Neon Storage.
+
+Antes de publicar:
+1. Conecte o repositório ao Netlify.
+2. Cadastre no Netlify as variáveis indicadas em .env.example.
+3. Nunca publique DATABASE_URL, senha administrativa ou chaves do Storage no GitHub.
+4. O banco Neon já possui a tabela app_state.
+5. O arquivo netlify/functions/seed-state.json contém a cópia dos dados do catálogo e inicializa o banco quando vazio.
