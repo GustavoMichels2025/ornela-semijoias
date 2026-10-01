@@ -2469,9 +2469,7 @@
     let stateReady = false;
 
     const APP_STORAGE_KEY = "ornelaCatalogoV2";
-    const ADMIN_PASSWORD_KEY = "ornelaAdminPasswordV2";
     const ADMIN_SESSION_KEY = "ornelaAdminSessionV2";
-    const DEFAULT_ADMIN_PASSWORD = "ornela2026";
     const API_BASE = "";
     const ADMIN_TOKEN_KEY = "ornelaAdminTokenServer";
     let saveTimer = null;
@@ -2936,10 +2934,6 @@
       renderProducts();
       renderResellers();
       alert(`${qty} unidade(s) devolvida(s) para a vitrine.`);
-    }
-
-    function getAdminPassword() {
-      return localStorage.getItem(ADMIN_PASSWORD_KEY) || DEFAULT_ADMIN_PASSWORD;
     }
 
     function isAdminAuthenticated() {
@@ -4432,12 +4426,6 @@
         sessionStorage.setItem(ADMIN_SESSION_KEY, "ok");
         openAdminPanel();
       } catch (error) {
-        if (adminPasswordInput.value === getAdminPassword()) {
-          sessionStorage.setItem(ADMIN_SESSION_KEY, "ok");
-          openAdminPanel();
-          return;
-        }
-
         adminLoginError.textContent = "Senha incorreta. Tente novamente.";
         adminPasswordInput.select();
       }
