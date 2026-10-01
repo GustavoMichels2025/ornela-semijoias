@@ -2056,7 +2056,7 @@
           <input type="password" id="newAdminPassword" placeholder="Nova senha (mínimo 6 caracteres)">
           <button class="btn btn-primary" type="button" id="changeAdminPassword">Alterar senha</button>
         </div>
-        <div class="storage-note">Os dados ficam salvos neste navegador. Para uso em vários aparelhos e segurança completa, a próxima etapa é conectar o catálogo a um servidor com banco de dados.</div>
+        <div class="storage-note">Produtos, estoque e imagens são sincronizados com o banco e o armazenamento online. Imagens novas só são concluídas depois da confirmação de envio ao Neon.</div>
       </div>
 
       <div class="admin-box" id="resellerModule" data-admin-panel="resellers">
@@ -2252,7 +2252,7 @@
           </label>
           <button class="btn btn-primary" type="button" id="linkImagePack">1. Relacionar fotos aos produtos</button>
           <button class="btn btn-primary" type="button" id="saveLinkedImages" disabled>2. Enviar fotos e salvar no banco</button>
-          <button class="btn btn-light" type="button" id="fixImageAccess">Corrigir acesso das imagens</button>
+          <button class="btn btn-light" type="button" id="fixImageAccess">Verificar armazenamento de imagens</button>
           <button class="btn btn-light" type="button" id="clearImagePack">Limpar arquivos</button>
         </div>
 
@@ -2563,6 +2563,10 @@
       const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
       if (!token) return;
 
+      if (products.some(product => String(product.image || "").startsWith("data:image/"))) {
+        return;
+      }
+
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         try {
@@ -2584,6 +2588,10 @@
 
     async function saveAppStateNow() {
       if (!stateReady) return;
+
+      if (products.some(product => String(product.image || "").startsWith("data:image/"))) {
+        throw new Error("Existem imagens locais pendentes. Envie as imagens ao Neon antes de salvar o catálogo.");
+      }
 
       try {
         localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(currentStatePayload()));
@@ -3086,7 +3094,7 @@
       const image = String(value || "").trim();
       if (!image) return false;
       if (image === "?" || image === "#" || image.toLowerCase() === "null" || image.toLowerCase() === "undefined") return false;
-      return /^(https?:\/\/|data:image\/)/i.test(image);
+      return /^(https?:\/\/|data:image\/|\/api\/image\?key=)/i.test(image);
     }
 
     function photoFallbackHtml(text = "Foto em breve") {
@@ -4738,7 +4746,7 @@
         return;
       }
 
-      imagePackStatus.textContent = "Verificando acesso público das imagens no Supabase...";
+      imagePackStatus.textContent = "Verificando conexão com o Neon Storage...";
 
       try {
         const response = await fetch(`${API_BASE}/api/upload-images`, {
@@ -4755,7 +4763,10 @@
           throw new Error(detail || "Não foi possível corrigir o acesso das imagens.");
         }
 
-        imagePackStatus.textContent = "Acesso das imagens verificado. Atualize a página e confira se as fotos aparecem.";
+        const data = await response.json().catch(() => ({}));
+        imagePackStatus.textContent = data.storage === "ready"
+          ? "Neon Storage conectado. As imagens serão entregues pelo catálogo em todos os dispositivos."
+          : "Armazenamento verificado. Atualize a página e confira as fotos.";
       } catch (error) {
         imagePackStatus.textContent = error.message || "Não foi possível corrigir o acesso das imagens.";
       }
@@ -4939,6 +4950,13 @@
       renderProducts();
       renderCart();
       renderResellers();
+
+      const pendingImages = products.filter(product => String(product.image || "").startsWith("data:image/")).length;
+      if (pendingImages > 0) {
+        linkedImagesPendingSave = true;
+        document.getElementById("saveLinkedImages").disabled = false;
+        imagePackStatus.textContent = `${pendingImages} imagem(ns) local(is) aguardando envio. Clique em Enviar fotos e salvar no banco.`;
+      }
 
       if (new URLSearchParams(window.location.search).get("admin") === "1") {
         if (isAdminAuthenticated()) {
