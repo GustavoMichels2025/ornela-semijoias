@@ -13,21 +13,21 @@ function getStorageConfig() {
       'ornela-produtos'
     ),
     endpoint: firstValue(
-      process.env.AWS_ENDPOINT_URL_S3,
-      process.env.NEON_STORAGE_ENDPOINT
+      process.env.NEON_STORAGE_ENDPOINT,
+      process.env.AWS_ENDPOINT_URL_S3
     ),
     region: firstValue(
-      process.env.AWS_REGION,
       process.env.NEON_STORAGE_REGION,
+      process.env.AWS_REGION,
       'us-east-2'
     ),
     accessKeyId: firstValue(
-      process.env.AWS_ACCESS_KEY_ID,
-      process.env.NEON_STORAGE_ACCESS_KEY_ID
+      process.env.NEON_STORAGE_ACCESS_KEY_ID,
+      process.env.AWS_ACCESS_KEY_ID
     ),
     secretAccessKey: firstValue(
-      process.env.AWS_SECRET_ACCESS_KEY,
-      process.env.NEON_STORAGE_SECRET_ACCESS_KEY
+      process.env.NEON_STORAGE_SECRET_ACCESS_KEY,
+      process.env.AWS_SECRET_ACCESS_KEY
     )
   };
 
