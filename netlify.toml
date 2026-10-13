@@ -23,6 +23,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/import-product"
+  to = "/.netlify/functions/import-product"
+  status = 200
+
+[[redirects]]
   from = "/api/image"
   to = "/.netlify/functions/image"
   status = 200
@@ -31,3 +36,4 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
