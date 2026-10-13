@@ -638,7 +638,7 @@
 
     .bulk-row {
       display: grid;
-      grid-template-columns: 34px 1.1fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr;
+      grid-template-columns: 34px 1.1fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr 170px;
       gap: 10px;
       align-items: center;
       padding: 12px;
@@ -655,6 +655,73 @@
       padding: 9px;
       background: #fff;
       outline: none;
+    }
+
+    .product-image-manager {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .product-image-thumb {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      position: relative;
+      border-radius: 10px;
+      overflow: visible;
+      border: 1px solid rgba(201, 162, 77, 0.25);
+      background: #fff;
+    }
+
+    .product-image-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 9px;
+      display: block;
+    }
+
+    .product-image-remove {
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      width: 20px;
+      height: 20px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--danger);
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 20px;
+      padding: 0;
+      z-index: 2;
+    }
+
+    .product-image-add {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--gold-dark);
+      border-radius: 10px;
+      background: #fffaf4;
+      color: var(--gold-dark);
+      cursor: pointer;
+      font-size: 24px;
+      font-weight: 500;
+    }
+
+    .product-image-add input { display: none; }
+
+    .product-image-count {
+      font-size: 10px;
+      color: var(--muted);
+      white-space: nowrap;
     }
 
     .modal {
@@ -735,6 +802,8 @@
       .bulk-row {
         grid-template-columns: 30px 1fr;
       }
+
+      .product-image-manager { grid-column: 1 / -1; padding-top: 5px; }
 
       .modal-form {
         grid-template-columns: 1fr;
@@ -2591,10 +2660,31 @@
     const saleProduct = document.getElementById("saleProduct");
     const reportReseller = document.getElementById("reportReseller");
 
+    function getProductImages(product) {
+      const images = Array.isArray(product?.images)
+        ? product.images.filter(image => typeof image === "string" && image.trim())
+        : [];
+
+      if (product?.image && !images.includes(product.image)) images.unshift(product.image);
+      return images.slice(0, 3);
+    }
+
+    function normalizeProductImages(product) {
+      const images = getProductImages(product);
+      product.images = images;
+      product.image = images[0] || "";
+      return images;
+    }
+
+    function hasPendingLocalProductImages() {
+      return products.some(product => getProductImages(product).some(image => image.startsWith("data:image/")));
+    }
+
     function applyLoadedState(saved, includeLocalCart = true) {
       if (!saved) return;
 
       if (Array.isArray(saved.products)) products = saved.products;
+      products.forEach(normalizeProductImages);
       const demoCodes = ["BR001", "AN001", "CL001", "PL001"];
       const hasOnlyDemoProducts = products.length === 4 && products.every(product => demoCodes.includes(product.code));
       if (hasOnlyDemoProducts) products = [];
@@ -2658,7 +2748,7 @@
       const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
       if (!token) return;
 
-      if (products.some(product => String(product.image || "").startsWith("data:image/"))) {
+      if (hasPendingLocalProductImages()) {
         return;
       }
 
@@ -2684,7 +2774,7 @@
     async function saveAppStateNow() {
       if (!stateReady) return;
 
-      if (products.some(product => String(product.image || "").startsWith("data:image/"))) {
+      if (hasPendingLocalProductImages()) {
         throw new Error("Existem imagens locais pendentes. Envie as imagens ao Neon antes de salvar o catálogo.");
       }
 
@@ -2721,9 +2811,12 @@
         throw new Error("Entre novamente no painel administrativo para enviar imagens ao banco.");
       }
 
-      const pending = products
-        .map((product, index) => ({ product, index }))
-        .filter(item => String(item.product.image || "").startsWith("data:image/"));
+      const pending = products.flatMap((product, productIndex) => {
+        const images = normalizeProductImages(product);
+        return images
+          .map((dataUrl, imageIndex) => ({ product, productIndex, imageIndex, dataUrl }))
+          .filter(item => item.dataUrl.startsWith("data:image/"));
+      });
 
       if (!pending.length) return 0;
 
@@ -2731,10 +2824,10 @@
 
       for (const item of pending) {
         const payload = {
-          productKey: item.product._ornelaId || item.product.code || String(item.index),
+          productKey: item.product._ornelaId || item.product.code || String(item.productIndex),
           code: item.product.code || "",
-          name: item.product.name || `produto-${item.index}`,
-          dataUrl: item.product.image
+          name: item.product.name || `produto-${item.productIndex}`,
+          dataUrl: item.dataUrl
         };
 
         const response = await fetch(`${API_BASE}/api/upload-images`, {
@@ -2756,7 +2849,10 @@
         const uploadedItem = uploaded[0];
 
         if (uploadedItem?.url) {
-          products[item.index].image = uploadedItem.url;
+          const product = products[item.productIndex];
+          normalizeProductImages(product);
+          product.images[item.imageIndex] = uploadedItem.url;
+          product.image = product.images[0] || "";
           uploadedCount++;
         }
       }
@@ -3369,6 +3465,7 @@
       }
 
       visibleProducts.forEach(({ product, index }) => {
+        const productImages = normalizeProductImages(product);
         const row = document.createElement("div");
         row.className = "bulk-row";
 
@@ -3388,10 +3485,113 @@
             <option value="false" ${!product.hidden ? "selected" : ""}>Visível</option>
             <option value="true" ${product.hidden ? "selected" : ""}>Oculto</option>
           </select>
+          <div class="product-image-manager" title="Imagens do produto: máximo de 3">
+            ${productImages.map((image, imageIndex) => `
+              <div class="product-image-thumb">
+                <img src="${escapeHtml(image)}" alt="Imagem ${imageIndex + 1} de ${escapeHtml(product.name)}" loading="lazy">
+                <button class="product-image-remove" type="button" title="Remover imagem"
+                  onclick="removeProductImage(${index}, ${imageIndex})">×</button>
+              </div>
+            `).join("")}
+            ${productImages.length < 3 ? `
+              <label class="product-image-add" title="Adicionar imagem">
+                +
+                <input type="file" accept="image/*" multiple onchange="addImagesToProduct(${index}, this.files, this)">
+              </label>
+            ` : ""}
+            <span class="product-image-count">${productImages.length}/3</span>
+          </div>
         `;
 
         bulkList.appendChild(row);
       });
+    }
+
+    async function addImagesToProduct(productIndex, fileList, input) {
+      const product = products[productIndex];
+      if (!product) return;
+
+      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+      if (!token) {
+        alert("Entre novamente no painel administrativo para adicionar imagens.");
+        return;
+      }
+
+      const currentImages = normalizeProductImages(product);
+      const availableSlots = 3 - currentImages.length;
+      const files = Array.from(fileList || []).slice(0, availableSlots);
+
+      if (!files.length) {
+        alert("Este produto já possui o limite de 3 imagens.");
+        if (input) input.value = "";
+        return;
+      }
+
+      if (input) input.disabled = true;
+
+      try {
+        for (const file of files) {
+          const dataUrl = await optimizeImageFile(file);
+          const response = await fetch(`${API_BASE}/api/upload-images`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              images: [{
+                productKey: product._ornelaId || product.code || String(productIndex),
+                code: product.code || "",
+                name: product.name || `produto-${productIndex}`,
+                dataUrl
+              }]
+            })
+          });
+
+          if (!response.ok) {
+            const detail = await response.text().catch(() => "");
+            throw new Error(`Não foi possível enviar a imagem. ${detail}`);
+          }
+
+          const data = await response.json();
+          const uploadedUrl = data.uploaded?.[0]?.url;
+          if (!uploadedUrl) throw new Error("O banco não retornou o endereço da imagem enviada.");
+
+          product.images.push(uploadedUrl);
+          product.image = product.images[0];
+        }
+
+        await saveAppStateNow();
+        renderProducts();
+        alert(`${files.length} imagem(ns) adicionada(s) ao produto. Total: ${product.images.length}/3.`);
+      } catch (error) {
+        alert(error.message || "Não foi possível adicionar as imagens.");
+        renderBulkList();
+      } finally {
+        if (input) {
+          input.disabled = false;
+          input.value = "";
+        }
+      }
+    }
+
+    async function removeProductImage(productIndex, imageIndex) {
+      const product = products[productIndex];
+      if (!product || (product.images || [])[imageIndex] === undefined) return;
+      if (!confirm(`Remover esta imagem de "${product.name}"?`)) return;
+
+      const removed = product.images.splice(imageIndex, 1)[0];
+      product.image = product.images[0] || "";
+
+      try {
+        await saveAppStateNow();
+        renderProducts();
+      } catch (error) {
+        product.images.splice(imageIndex, 0, removed);
+        product.image = product.images[0] || "";
+        renderBulkList();
+        alert(error.message || "Não foi possível remover a imagem.");
+      }
     }
 
 
@@ -4507,6 +4707,7 @@
           code: item.code,
           description: item.catalogDescription || item.name,
           image: item.image || "",
+          images: item.image ? [item.image] : [],
           tag: item.tag || "",
           hidden: false,
           stock: Number(item.qty || 1)
@@ -4601,6 +4802,7 @@
         code: document.getElementById("code").value.trim(),
         description: document.getElementById("description").value.trim(),
         image: selectedImage || "",
+        images: selectedImage ? [selectedImage] : [],
         tag: document.getElementById("tag").value,
         hidden: false,
         stock: Number(document.getElementById("stock").value || 1)
@@ -4779,6 +4981,12 @@
       const index = Number(document.getElementById("editIndex").value);
       if (!products[index]) return;
 
+      const editedImage = document.getElementById("editImage").value.trim();
+      const currentImages = normalizeProductImages(products[index]);
+      const nextImages = editedImage
+        ? [editedImage, ...currentImages.filter(image => image !== editedImage)].slice(0, 3)
+        : currentImages;
+
       products[index] = {
         ...products[index],
         name: document.getElementById("editName").value.trim(),
@@ -4786,7 +4994,8 @@
         price: document.getElementById("editPrice").value.trim(),
         code: document.getElementById("editCode").value.trim(),
         stock: Number(document.getElementById("editStock").value || 0),
-        image: document.getElementById("editImage").value.trim() || products[index].image,
+        image: nextImages[0] || "",
+        images: nextImages,
         description: document.getElementById("editDescription").value.trim(),
         tag: document.getElementById("editTag").value,
         hidden: document.getElementById("editHidden").value === "true" || Number(document.getElementById("editStock").value || 0) <= 0
@@ -4949,6 +5158,7 @@
 
           if (match) {
             product.image = match.dataUrl;
+            product.images = [match.dataUrl];
             linked++;
           } else {
             notFound++;
@@ -5217,7 +5427,8 @@
       renderCart();
       renderResellers();
 
-      const pendingImages = products.filter(product => String(product.image || "").startsWith("data:image/")).length;
+      const pendingImages = products.reduce((count, product) =>
+        count + getProductImages(product).filter(image => image.startsWith("data:image/")).length, 0);
       if (pendingImages > 0) {
         linkedImagesPendingSave = true;
         document.getElementById("saveLinkedImages").disabled = false;
