@@ -2,6 +2,7 @@ const { HeadBucketCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { json, methodNotAllowed } = require('./utils/response');
 const { requireAdmin } = require('./utils/auth');
 const { getStorageClient } = require('./utils/storage');
+const { safeFetchBuffer } = require('./utils/safe-fetch');
 
 function safeName(value) {
   return String(value || 'imagem')
@@ -17,6 +18,16 @@ function dataUrlToBuffer(dataUrl) {
   const match = String(dataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!match) throw new Error('Imagem inválida. Selecione novamente o arquivo.');
   return { mime: match[1], buffer: Buffer.from(match[2], 'base64') };
+}
+
+async function imageToBuffer(image) {
+  if (image.dataUrl) return dataUrlToBuffer(image.dataUrl);
+  if (!image.sourceUrl) throw new Error('Imagem inválida. Selecione novamente o arquivo.');
+
+  const fetched = await safeFetchBuffer(image.sourceUrl, { maxBytes: 5 * 1024 * 1024, accept: 'image/*' });
+  const mime = String(fetched.response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!mime.startsWith('image/')) throw new Error('O endereço informado não retornou uma imagem válida.');
+  return { mime, buffer: fetched.buffer };
 }
 
 exports.handler = async event => {
@@ -35,7 +46,7 @@ exports.handler = async event => {
 
     const uploaded = [];
     for (const image of images) {
-      const { mime, buffer } = dataUrlToBuffer(image.dataUrl);
+      const { mime, buffer } = await imageToBuffer(image);
       if (!buffer.length) throw new Error('A imagem selecionada está vazia.');
       if (buffer.length > 5 * 1024 * 1024) throw new Error('Imagem maior que 5 MB.');
 
@@ -68,3 +79,4 @@ exports.handler = async event => {
     });
   }
 };
+
