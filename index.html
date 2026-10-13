@@ -968,6 +968,86 @@
       margin-bottom: 4px;
     }
 
+    .order-items-editor {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .order-item-editor {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) 92px 130px auto;
+      gap: 9px;
+      align-items: center;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid rgba(201, 162, 77, 0.18);
+      border-radius: 14px;
+    }
+
+    .order-item-editor strong {
+      margin: 0;
+      font-size: 13px;
+    }
+
+    .order-item-editor small {
+      margin: 2px 0 0;
+      font-size: 11px;
+    }
+
+    .order-item-editor input,
+    .order-discount-field input {
+      width: 100%;
+      border: 1px solid rgba(201, 162, 77, 0.3);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #fffaf4;
+      font: inherit;
+      outline: none;
+    }
+
+    .order-item-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .order-item-editor button {
+      border: 1px solid rgba(184, 76, 76, 0.28);
+      color: var(--danger);
+      background: #fff;
+      border-radius: 10px;
+      padding: 9px 11px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .order-edit-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 9px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(239, 228, 213, 0.48);
+    }
+
+    .order-summary-value,
+    .order-discount-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .order-summary-value b {
+      color: var(--text);
+      font-size: 15px;
+    }
+
     .copy-order {
       border: 1px solid rgba(201, 162, 77, 0.28);
       background: #fff;
@@ -1008,6 +1088,12 @@
       font-weight: 700;
       cursor: pointer;
       outline: none;
+    }
+
+    .order-actions .save-order {
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      color: #fff;
+      border-color: transparent;
     }
 
     .order-status {
@@ -1902,6 +1988,9 @@
       .reseller-form { grid-template-columns: 1fr 1fr; }
       .reseller-operation { grid-template-columns: 1fr; }
       .reseller-kpis { grid-template-columns: 1fr; }
+      .order-item-editor { grid-template-columns: 1fr 82px 115px; }
+      .order-item-editor > div:first-child { grid-column: 1 / -1; }
+      .order-edit-summary { grid-template-columns: 1fr 1fr; }
     }
 
     @media (max-width: 420px) {
@@ -1915,6 +2004,9 @@
       .cart-panel { bottom: 142px; }
       .reseller-form { grid-template-columns: 1fr; }
       .reseller-form .span-2 { grid-column: auto; }
+      .order-item-editor { grid-template-columns: 1fr 1fr; }
+      .order-item-editor button { grid-column: 1 / -1; }
+      .order-edit-summary { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -3650,6 +3742,9 @@
         code,
         date: new Date().toLocaleString("pt-BR"),
         items,
+        subtotal: numberToBR(totalValue),
+        discountPercent: 0,
+        discountValue: numberToBR(0),
         total: numberToBR(totalValue),
         status: "Aberto"
       };
@@ -3716,6 +3811,7 @@
 
     function renderOrdersHistory() {
       const search = String(orderSearch?.value || "").toLowerCase().trim();
+      ordersHistory.forEach(recalcOrderTotal);
       const filtered = ordersHistory.filter(order => order.code.toLowerCase().includes(search));
 
       if (!ordersList) return;
@@ -3726,23 +3822,54 @@
         return;
       }
 
-      ordersList.innerHTML = filtered.map(order => `
-        <div class="order-card">
+      ordersList.innerHTML = filtered.map(order => {
+        const locked = (order.status || "Aberto") === "Finalizado";
+        return `
+        <div class="order-card" data-order-code="${escapeHtml(order.code)}">
           <strong>Pedido ${order.code} <span class="order-status">${order.status || "Aberto"}</span></strong>
-          <small>${order.date} • Total aproximado: R$ ${order.total}</small>
-          <ul>
-            ${order.items.map(item => `
-              <li>${item.qty}x ${item.name} • Código: ${item.code} — R$ ${item.price}</li>
+          <small>${order.date} • Edite os itens e clique em Salvar alterações.</small>
+          <div class="order-items-editor">
+            ${order.items.map((item, itemIndex) => `
+              <div class="order-item-editor">
+                <div>
+                  <strong>${escapeHtml(item.name)}</strong>
+                  <small>Código: ${escapeHtml(item.code)}</small>
+                </div>
+                <label class="order-item-field">
+                  <span>Quantidade</span>
+                  <input type="number" min="1" step="1" value="${Number(item.qty || 1)}"
+                    aria-label="Quantidade de ${escapeHtml(item.name)}"
+                    onchange="updateOrderItemQuantity('${order.code}', ${itemIndex}, this.value)" ${locked ? "disabled" : ""}>
+                </label>
+                <label class="order-item-field">
+                  <span>Valor unitário (R$)</span>
+                  <input type="text" inputmode="decimal" value="${escapeHtml(item.price)}"
+                    aria-label="Valor unitário de ${escapeHtml(item.name)}"
+                    onchange="updateOrderItemPrice('${order.code}', ${itemIndex}, this.value)" ${locked ? "disabled" : ""}>
+                </label>
+                <button type="button" onclick="removeItemFromOrder('${order.code}', ${itemIndex})" ${locked ? "disabled" : ""}>Remover</button>
+              </div>
             `).join("")}
-          </ul>
+          </div>
+          <div class="order-edit-summary">
+            <div class="order-summary-value"><span>Subtotal</span><b>R$ ${order.subtotal}</b></div>
+            <label class="order-discount-field">
+              <span>Desconto (%)</span>
+              <input type="number" min="0" max="100" step="0.01" value="${Number(order.discountPercent || 0)}"
+                onchange="updateOrderDiscount('${order.code}', this.value)" ${locked ? "disabled" : ""}>
+            </label>
+            <div class="order-summary-value"><span>Valor do desconto</span><b>R$ ${order.discountValue}</b></div>
+            <div class="order-summary-value"><span>Total final</span><b>R$ ${order.total}</b></div>
+          </div>
           <div class="order-actions">
             <button type="button" onclick="copyOrderText('${order.code}')">Copiar resumo</button>
-            <button type="button" onclick="addItemToOrder('${order.code}')">Adicionar item</button>
+            <button type="button" onclick="addItemToOrder('${order.code}')" ${locked ? "disabled" : ""}>Adicionar item</button>
+            <button class="save-order" type="button" onclick="saveOrderChanges('${order.code}', this)" ${locked ? "disabled" : ""}>Salvar alterações</button>
             <button type="button" onclick="finalizeOrder('${order.code}')">Finalizar venda</button>
             <button type="button" onclick="cancelOrder('${order.code}')">Cancelar pedido</button>
           </div>
         </div>
-      `).join("");
+      `}).join("");
     }
 
     function copyOrderText(code) {
@@ -3753,15 +3880,87 @@
         `Pedido ${order.code}\n` +
         `${order.date}\n\n` +
         order.items.map(item => `${item.qty}x ${item.name} | Código: ${item.code} | R$ ${item.price}`).join("\n") +
-        `\n\nTotal aproximado: R$ ${order.total}`;
+        `\n\nSubtotal: R$ ${order.subtotal}` +
+        `\nDesconto: ${numberToBR(order.discountPercent)}% (- R$ ${order.discountValue})` +
+        `\nTotal final: R$ ${order.total}`;
 
       navigator.clipboard?.writeText(text);
       alert("Resumo do pedido copiado.");
     }
 
     function recalcOrderTotal(order) {
-      const total = order.items.reduce((sum, item) => sum + (brMoneyToNumber(item.price) * item.qty), 0);
-      order.total = numberToBR(total);
+      const subtotal = order.items.reduce((sum, item) => sum + (brMoneyToNumber(item.price) * Number(item.qty || 0)), 0);
+      const discountPercent = Math.min(100, Math.max(0, Number(String(order.discountPercent || 0).replace(",", ".")) || 0));
+      const discountValue = subtotal * discountPercent / 100;
+      order.subtotal = numberToBR(subtotal);
+      order.discountPercent = discountPercent;
+      order.discountValue = numberToBR(discountValue);
+      order.total = numberToBR(Math.max(0, subtotal - discountValue));
+    }
+
+    function updateOrderItemQuantity(code, itemIndex, value) {
+      const order = ordersHistory.find(item => item.code === code);
+      const item = order?.items?.[itemIndex];
+      if (!item || (order.status || "Aberto") === "Finalizado") return;
+
+      item.qty = Math.max(1, Math.floor(Number(value) || 1));
+      recalcOrderTotal(order);
+      renderOrdersHistory();
+    }
+
+    function updateOrderItemPrice(code, itemIndex, value) {
+      const order = ordersHistory.find(item => item.code === code);
+      const item = order?.items?.[itemIndex];
+      if (!item || (order.status || "Aberto") === "Finalizado") return;
+
+      item.price = numberToBR(Math.max(0, brMoneyToNumber(value)));
+      recalcOrderTotal(order);
+      renderOrdersHistory();
+    }
+
+    function updateOrderDiscount(code, value) {
+      const order = ordersHistory.find(item => item.code === code);
+      if (!order || (order.status || "Aberto") === "Finalizado") return;
+
+      order.discountPercent = Math.min(100, Math.max(0, Number(String(value).replace(",", ".")) || 0));
+      recalcOrderTotal(order);
+      renderOrdersHistory();
+    }
+
+    function removeItemFromOrder(code, itemIndex) {
+      const order = ordersHistory.find(item => item.code === code);
+      const item = order?.items?.[itemIndex];
+      if (!item || (order.status || "Aberto") === "Finalizado") return;
+
+      if (!confirm(`Remover ${item.name} deste pedido?`)) return;
+      order.items.splice(itemIndex, 1);
+      recalcOrderTotal(order);
+      renderOrdersHistory();
+    }
+
+    async function saveOrderChanges(code, button) {
+      const order = ordersHistory.find(item => item.code === code);
+      if (!order) return;
+
+      recalcOrderTotal(order);
+      const originalText = button?.textContent || "Salvar alterações";
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Salvando...";
+      }
+
+      try {
+        await saveAppStateNow();
+        if (ordersRefreshStatus) ordersRefreshStatus.textContent = `Pedido ${code} atualizado e salvo no banco.`;
+        alert("Alterações do pedido salvas com sucesso.");
+      } catch (error) {
+        alert(error.message || "Não foi possível salvar as alterações do pedido.");
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      }
     }
 
     function addItemToOrder(code) {
