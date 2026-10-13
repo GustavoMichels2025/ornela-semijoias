@@ -25,7 +25,15 @@ exports.handler = async (event) => {
     }
     if (!requireAdmin(event)) return json(401, { error: 'Acesso administrativo necessário.' });
     const payload = sanitizeState(JSON.parse(event.body || '{}'));
+    const currentRows = await sql`SELECT data FROM public.app_state WHERE id = 1`;
+    const currentOrders = Array.isArray(currentRows[0]?.data?.ordersHistory) ? currentRows[0].data.ordersHistory : [];
+    const payloadCodes = new Set(payload.ordersHistory.map(order => order.code));
+    payload.ordersHistory = [
+      ...payload.ordersHistory,
+      ...currentOrders.filter(order => !payloadCodes.has(order.code))
+    ];
     await sql`INSERT INTO public.app_state (id,data,updated_at) VALUES (1, ${JSON.stringify(payload)}::jsonb, now()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`;
     return json(200, payload);
   } catch (error) { return json(500, { error: 'Erro ao acessar o banco Neon.', detail: error.message }); }
 };
+
