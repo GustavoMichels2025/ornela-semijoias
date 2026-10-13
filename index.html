@@ -638,7 +638,7 @@
 
     .bulk-row {
       display: grid;
-      grid-template-columns: 34px 1.1fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr 170px;
+      grid-template-columns: 34px 1.1fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr 300px;
       gap: 10px;
       align-items: center;
       padding: 12px;
@@ -3512,7 +3512,7 @@
               </label>
             ` : ""}
             <span class="product-image-count">${productImages.length}/3</span>
-            ${productImages.some(image => image.startsWith("data:image/")) ? `
+            ${productImages.length > 0 ? `
               <button class="product-images-save" type="button" onclick="saveProductGallery(${index}, this)">Salvar fotos</button>
             ` : ""}
           </div>
@@ -3563,7 +3563,12 @@
 
       const pendingCount = getProductImages(product).filter(image => image.startsWith("data:image/")).length;
       if (!pendingCount) {
-        alert("Não há novas fotos aguardando salvamento.");
+        try {
+          await saveAppStateNow();
+          alert("As fotos deste produto já estão salvas e confirmadas na vitrine.");
+        } catch (error) {
+          alert(error.message || "Não foi possível confirmar as fotos no banco.");
+        }
         return;
       }
 
