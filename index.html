@@ -499,6 +499,42 @@
       font-weight: 800;
     }
 
+    .product-import-box {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid rgba(201, 162, 77, 0.22);
+      border-radius: 18px;
+      background: #fffaf4;
+    }
+
+    .product-import-box input {
+      background: #fff;
+    }
+
+    .product-import-status {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .imported-image-previews {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .imported-image-previews img {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 1px solid rgba(201, 162, 77, 0.25);
+      background: #fff;
+    }
+
     .xml-actions {
       display: flex;
       flex-wrap: wrap;
@@ -2072,6 +2108,8 @@
       .order-item-editor { grid-template-columns: 1fr 82px 115px; }
       .order-item-editor > div:first-child { grid-column: 1 / -1; }
       .order-edit-summary { grid-template-columns: 1fr 1fr; }
+      .product-import-box { grid-template-columns: 1fr; }
+      .product-import-status { grid-column: auto; }
     }
 
     @media (max-width: 420px) {
@@ -2477,6 +2515,12 @@
         </p>
 
         <form class="form" id="productForm">
+          <div class="product-import-box">
+            <input type="url" id="productSourceUrl" placeholder="Cole o link da página do produto">
+            <button class="btn btn-primary" type="button" id="importProductFromUrl">Buscar informações</button>
+            <span class="product-import-status" id="productImportStatus">Cole o link de um produto para preencher os campos e importar até 3 imagens.</span>
+          </div>
+
           <input type="text" id="name" placeholder="Nome do produto" required />
           <input type="text" id="category" placeholder="Categoria" required />
           <input type="text" id="price" placeholder="Valor. Ex: 89,00" required />
@@ -2497,6 +2541,7 @@
 
           <div class="image-save-box">
             <img class="preview" id="preview" alt="Prévia da imagem" />
+            <div class="imported-image-previews" id="importedImagePreviews"></div>
             <button class="btn btn-light" type="button" id="saveProductImage" disabled>Salvar imagem</button>
             <span class="image-save-status" id="imageSaveStatus">Selecione uma foto ou cole um link para salvar no produto.</span>
           </div>
@@ -2604,6 +2649,7 @@
     let selectedCategory = "Todos";
     let selectedImage = "";
     let pendingImage = "";
+    let importedProductImages = [];
     let linkedImagesPendingSave = false;
 
     const grid = document.getElementById("productGrid");
@@ -2615,6 +2661,10 @@
     const imageFile = document.getElementById("imageFile");
     const imageUrl = document.getElementById("imageUrl");
     const preview = document.getElementById("preview");
+    const importedImagePreviews = document.getElementById("importedImagePreviews");
+    const productSourceUrl = document.getElementById("productSourceUrl");
+    const importProductFromUrl = document.getElementById("importProductFromUrl");
+    const productImportStatus = document.getElementById("productImportStatus");
     const saveProductImage = document.getElementById("saveProductImage");
     const imageSaveStatus = document.getElementById("imageSaveStatus");
     const showHiddenToggle = document.getElementById("showHiddenToggle");
@@ -2870,6 +2920,52 @@
       }
 
       return uploadedCount;
+    }
+
+    async function uploadProductImagesToStorage(productIndex) {
+      const product = products[productIndex];
+      if (!product) return 0;
+
+      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+      if (!token) throw new Error("Entre novamente no painel administrativo para salvar as imagens.");
+
+      const images = normalizeProductImages(product);
+      const pending = images
+        .map((image, imageIndex) => ({ image, imageIndex }))
+        .filter(item => item.image.startsWith("data:image/") || /^https?:\/\//i.test(item.image));
+
+      if (!pending.length) return 0;
+
+      const payloads = pending.map(item => ({
+        productKey: product._ornelaId || product.code || String(productIndex),
+        code: product.code || "",
+        name: product.name || `produto-${productIndex}`,
+        ...(item.image.startsWith("data:image/") ? { dataUrl: item.image } : { sourceUrl: item.image })
+      }));
+
+      const response = await fetch(`${API_BASE}/api/upload-images`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ images: payloads })
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(`Não foi possível copiar as imagens para o Neon. ${detail}`);
+      }
+
+      const data = await response.json();
+      const uploaded = Array.isArray(data.uploaded) ? data.uploaded : [];
+      if (uploaded.length !== pending.length) throw new Error("Nem todas as imagens foram copiadas para o banco.");
+
+      pending.forEach((item, index) => {
+        product.images[item.imageIndex] = uploaded[index].url;
+      });
+      product.image = product.images[0] || "";
+      return uploaded.length;
     }
 
     function makeId(prefix) {
@@ -4778,9 +4874,87 @@
       xmlStatus.textContent = "Importação limpa. Pronto para uma nova NF-e.";
     });
 
+    function renderImportedProductImages() {
+      importedImagePreviews.innerHTML = importedProductImages.map((image, index) =>
+        `<img src="${escapeHtml(image)}" alt="Imagem importada ${index + 1}" loading="lazy">`
+      ).join("");
+    }
+
+    importProductFromUrl.addEventListener("click", async () => {
+      const url = productSourceUrl.value.trim();
+      if (!url) {
+        alert("Cole o link da página do produto.");
+        productSourceUrl.focus();
+        return;
+      }
+
+      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+      if (!token) {
+        alert("Entre novamente no painel administrativo para importar o produto.");
+        return;
+      }
+
+      importProductFromUrl.disabled = true;
+      importProductFromUrl.textContent = "Buscando...";
+      productImportStatus.textContent = "Lendo as informações da página...";
+
+      try {
+        const response = await fetch(`${API_BASE}/api/import-product`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || data.error || "Não foi possível ler essa página.");
+
+        if (data.name) document.getElementById("name").value = data.name;
+        if (data.code) document.getElementById("code").value = data.code;
+        if (data.description) document.getElementById("description").value = data.description;
+        document.getElementById("category").value = data.category || suggestCategory(data.name || "");
+
+        if (data.price) {
+          const cleaned = String(data.price).replace(/[^0-9,.-]/g, "");
+          const numericPrice = cleaned.includes(",") ? brMoneyToNumber(cleaned) : Number(cleaned);
+          if (Number.isFinite(numericPrice) && numericPrice > 0) document.getElementById("price").value = numberToBR(numericPrice);
+        }
+
+        importedProductImages = Array.isArray(data.images) ? data.images.slice(0, 3) : [];
+        selectedImage = importedProductImages[0] || "";
+        pendingImage = selectedImage;
+        imageUrl.value = selectedImage;
+        renderImportedProductImages();
+
+        if (selectedImage) {
+          preview.src = selectedImage;
+          preview.style.display = "block";
+        } else {
+          preview.removeAttribute("src");
+          preview.style.display = "none";
+        }
+
+        imageSaveStatus.textContent = importedProductImages.length
+          ? `${importedProductImages.length} imagem(ns) encontrada(s). Elas serão copiadas para o banco ao adicionar o produto.`
+          : "Nenhuma imagem foi encontrada automaticamente. Você pode adicionar uma manualmente.";
+        imageSaveStatus.classList.toggle("saved", importedProductImages.length > 0);
+        productImportStatus.textContent = "Informações preenchidas. Revise e edite os campos antes de adicionar ao catálogo.";
+      } catch (error) {
+        productImportStatus.textContent = error.message || "Não foi possível importar esse produto.";
+      } finally {
+        importProductFromUrl.disabled = false;
+        importProductFromUrl.textContent = "Buscar informações";
+      }
+    });
+
     imageFile.addEventListener("change", event => {
       const file = event.target.files[0];
       if (!file) return;
+
+      importedProductImages = [];
+      renderImportedProductImages();
 
       const reader = new FileReader();
 
@@ -4798,6 +4972,8 @@
 
     imageUrl.addEventListener("input", () => {
       if (imageUrl.value.trim()) {
+        importedProductImages = [];
+        renderImportedProductImages();
         pendingImage = imageUrl.value.trim();
         preview.src = pendingImage;
         preview.style.display = "block";
@@ -4814,6 +4990,8 @@
       }
 
       selectedImage = pendingImage;
+      importedProductImages = selectedImage ? [selectedImage] : [];
+      renderImportedProductImages();
       saveProductImage.disabled = true;
       imageSaveStatus.textContent = "Imagem salva para este produto.";
       imageSaveStatus.classList.add("saved");
@@ -4827,14 +5005,18 @@
         return;
       }
 
+      const productImages = importedProductImages.length
+        ? importedProductImages.slice(0, 3)
+        : (selectedImage ? [selectedImage] : []);
+
       const newProduct = {
         name: document.getElementById("name").value.trim(),
         category: document.getElementById("category").value.trim(),
         price: document.getElementById("price").value.trim(),
         code: document.getElementById("code").value.trim(),
         description: document.getElementById("description").value.trim(),
-        image: selectedImage || "",
-        images: selectedImage ? [selectedImage] : [],
+        image: productImages[0] || "",
+        images: productImages,
         tag: document.getElementById("tag").value,
         hidden: false,
         stock: Number(document.getElementById("stock").value || 1)
@@ -4843,11 +5025,12 @@
       products.unshift(newProduct);
       ensureProductIds();
 
-      if (String(newProduct.image || "").startsWith("data:image/")) {
+      if (newProduct.images.some(image => image.startsWith("data:image/") || /^https?:\/\//i.test(image))) {
         try {
-          await uploadPendingProductImages();
+          await uploadProductImagesToStorage(0);
           await saveAppStateNow();
         } catch (error) {
+          products.shift();
           alert(error.message || "Não foi possível salvar a imagem no banco.");
           return;
         }
@@ -4858,6 +5041,10 @@
       imageUrl.value = "";
       selectedImage = "";
       pendingImage = "";
+      importedProductImages = [];
+      productSourceUrl.value = "";
+      productImportStatus.textContent = "Cole o link de um produto para preencher os campos e importar até 3 imagens.";
+      renderImportedProductImages();
       preview.removeAttribute("src");
       preview.style.display = "none";
       saveProductImage.disabled = true;
