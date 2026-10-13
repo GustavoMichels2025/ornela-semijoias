@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -2180,8 +2180,11 @@
 
         <div class="xml-actions">
           <input type="text" id="orderSearch" placeholder="Buscar código do pedido. Ex: ORN-2406-001">
+          <button class="btn btn-primary" type="button" id="refreshOrders">Atualizar pedidos</button>
           <button class="btn btn-light" type="button" id="clearOrders">Limpar histórico local</button>
         </div>
+
+        <p class="xml-status" id="ordersRefreshStatus">Os pedidos são carregados do banco ao abrir esta aba.</p>
 
         <div class="orders-list" id="ordersList"></div>
       </div>
@@ -2460,6 +2463,8 @@
     const settingsForm = document.getElementById("settingsForm");
     const ordersList = document.getElementById("ordersList");
     const orderSearch = document.getElementById("orderSearch");
+    const refreshOrdersButton = document.getElementById("refreshOrders");
+    const ordersRefreshStatus = document.getElementById("ordersRefreshStatus");
     let cart = [];
     let currentOrderId = "";
     let orderCounter = 1;
@@ -3543,6 +3548,10 @@
       });
 
       updateDashboard();
+
+      if (tabName === "orders") {
+        refreshOrdersHistory();
+      }
     }
 
     function resetImagePackInput() {
@@ -3646,12 +3655,23 @@
       };
     }
 
-    function saveCurrentOrder() {
+    async function saveCurrentOrder() {
       if (!cart.length) return;
 
       const snapshot = createOrderSnapshot();
-      const existingIndex = ordersHistory.findIndex(order => order.code === snapshot.code);
+      const response = await fetch(`${API_BASE}/api/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: snapshot }),
+        keepalive: true
+      });
 
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(detail || "Não foi possível registrar o pedido no banco.");
+      }
+
+      const existingIndex = ordersHistory.findIndex(order => order.code === snapshot.code);
       if (existingIndex >= 0) {
         snapshot.status = ordersHistory[existingIndex].status || "Aberto";
         ordersHistory[existingIndex] = snapshot;
@@ -3660,11 +3680,38 @@
       }
 
       renderOrdersHistory();
-      fetch(`${API_BASE}/api/order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order: snapshot })
-      }).catch(error => console.warn("Não foi possível registrar o pedido no banco:", error));
+      return snapshot;
+    }
+
+    async function refreshOrdersHistory() {
+      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+      if (!token) return;
+
+      if (refreshOrdersButton) refreshOrdersButton.disabled = true;
+      if (ordersRefreshStatus) ordersRefreshStatus.textContent = "Buscando pedidos no banco...";
+
+      try {
+        const response = await fetch(`${API_BASE}/api/order`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` },
+          cache: "no-store"
+        });
+
+        if (!response.ok) throw new Error("Não foi possível atualizar os pedidos.");
+
+        const data = await response.json();
+        ordersHistory = Array.isArray(data.ordersHistory) ? data.ordersHistory : [];
+        renderOrdersHistory();
+
+        if (ordersRefreshStatus) {
+          const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          ordersRefreshStatus.textContent = `${ordersHistory.length} pedido(s) carregado(s) do banco às ${now}.`;
+        }
+      } catch (error) {
+        if (ordersRefreshStatus) ordersRefreshStatus.textContent = error.message;
+      } finally {
+        if (refreshOrdersButton) refreshOrdersButton.disabled = false;
+      }
     }
 
     function renderOrdersHistory() {
@@ -3675,8 +3722,7 @@
       updateDashboard();
 
       if (!filtered.length) {
-        ordersList.innerHTML = '<p class="client-only-note">Nenhum pedido registrado nesta sessão.</p>';
-        saveAppState();
+        ordersList.innerHTML = '<p class="client-only-note">Nenhum pedido encontrado no banco.</p>';
         return;
       }
 
@@ -3697,7 +3743,6 @@
           </div>
         </div>
       `).join("");
-      saveAppState();
     }
 
     function copyOrderText(code) {
@@ -3766,6 +3811,7 @@
 
       recalcOrderTotal(order);
       renderOrdersHistory();
+      saveAppState();
       alert("Item adicionado ao pedido.");
     }
 
@@ -3804,10 +3850,11 @@
       renderCategories();
       renderProducts();
       renderOrdersHistory();
+      saveAppState();
       alert("Venda finalizada e estoque atualizado.");
     }
 
-    function cancelOrder(code) {
+    async function cancelOrder(code) {
       const order = ordersHistory.find(item => item.code === code);
       if (!order) return;
 
@@ -3819,8 +3866,23 @@
       const ok = confirm(`Cancelar/remover pedido ${code}?`);
       if (!ok) return;
 
-      ordersHistory = ordersHistory.filter(item => item.code !== code);
-      renderOrdersHistory();
+      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+      try {
+        const response = await fetch(`${API_BASE}/api/order`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ code })
+        });
+
+        if (!response.ok) throw new Error("Não foi possível cancelar o pedido no banco.");
+        ordersHistory = ordersHistory.filter(item => item.code !== code);
+        renderOrdersHistory();
+      } catch (error) {
+        alert(error.message);
+      }
     }
 
     function addToCart(index, button) {
@@ -4460,19 +4522,36 @@
       cartPanel.classList.remove("open");
     });
 
-    cartWhatsapp.addEventListener("click", () => {
+    cartWhatsapp.addEventListener("click", async () => {
       if (!cart.length) {
         alert("Sua sacola está vazia.");
         return;
       }
 
       const link = buildWhatsAppOrderLink();
-      saveCurrentOrder();
-
-      window.open(link, "_blank");
-
       const sentCode = currentOrderId;
-      if (cartStatus) cartStatus.textContent = `Pedido ${sentCode} enviado para o WhatsApp.`;
+      const whatsappWindow = window.open("", "_blank");
+      cartWhatsapp.disabled = true;
+      if (cartStatus) cartStatus.textContent = `Registrando pedido ${sentCode} no banco...`;
+
+      try {
+        await saveCurrentOrder();
+
+        if (whatsappWindow) {
+          whatsappWindow.location.href = link;
+        } else {
+          window.location.href = link;
+        }
+      } catch (error) {
+        whatsappWindow?.close();
+        if (cartStatus) cartStatus.textContent = "Não foi possível registrar o pedido. Tente novamente.";
+        alert("O pedido não foi enviado porque não foi possível registrá-lo no banco. Verifique sua internet e tente novamente.");
+        return;
+      } finally {
+        cartWhatsapp.disabled = false;
+      }
+
+      if (cartStatus) cartStatus.textContent = `Pedido ${sentCode} registrado e enviado para o WhatsApp.`;
 
       setTimeout(() => {
         const ok = confirm(`Pedido ${sentCode} enviado para o WhatsApp. Deseja limpar a sacola para um novo pedido?`);
@@ -4483,6 +4562,7 @@
     });
 
     orderSearch.addEventListener("input", renderOrdersHistory);
+    refreshOrdersButton.addEventListener("click", refreshOrdersHistory);
 
     document.getElementById("clearOrders").addEventListener("click", () => {
       const ok = confirm("Limpar o histórico local de pedidos?");
@@ -4956,6 +5036,7 @@
   </script>
 </body>
 </html>
+
 
 
 
