@@ -724,6 +724,18 @@
       white-space: nowrap;
     }
 
+    .product-images-save {
+      border: 0;
+      border-radius: 10px;
+      padding: 9px 11px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      color: #fff;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
     .modal {
       position: fixed;
       inset: 0;
@@ -3500,6 +3512,9 @@
               </label>
             ` : ""}
             <span class="product-image-count">${productImages.length}/3</span>
+            ${productImages.some(image => image.startsWith("data:image/")) ? `
+              <button class="product-images-save" type="button" onclick="saveProductGallery(${index}, this)">Salvar fotos</button>
+            ` : ""}
           </div>
         `;
 
@@ -3510,12 +3525,6 @@
     async function addImagesToProduct(productIndex, fileList, input) {
       const product = products[productIndex];
       if (!product) return;
-
-      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
-      if (!token) {
-        alert("Entre novamente no painel administrativo para adicionar imagens.");
-        return;
-      }
 
       const currentImages = normalizeProductImages(product);
       const availableSlots = 3 - currentImages.length;
@@ -3532,45 +3541,50 @@
       try {
         for (const file of files) {
           const dataUrl = await optimizeImageFile(file);
-          const response = await fetch(`${API_BASE}/api/upload-images`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              images: [{
-                productKey: product._ornelaId || product.code || String(productIndex),
-                code: product.code || "",
-                name: product.name || `produto-${productIndex}`,
-                dataUrl
-              }]
-            })
-          });
-
-          if (!response.ok) {
-            const detail = await response.text().catch(() => "");
-            throw new Error(`Não foi possível enviar a imagem. ${detail}`);
-          }
-
-          const data = await response.json();
-          const uploadedUrl = data.uploaded?.[0]?.url;
-          if (!uploadedUrl) throw new Error("O banco não retornou o endereço da imagem enviada.");
-
-          product.images.push(uploadedUrl);
-          product.image = product.images[0];
+          product.images.push(dataUrl);
         }
 
-        await saveAppStateNow();
-        renderProducts();
-        alert(`${files.length} imagem(ns) adicionada(s) ao produto. Total: ${product.images.length}/3.`);
+        product.image = product.images[0] || "";
+        renderBulkList();
       } catch (error) {
-        alert(error.message || "Não foi possível adicionar as imagens.");
+        alert(error.message || "Não foi possível preparar as imagens.");
         renderBulkList();
       } finally {
         if (input) {
           input.disabled = false;
           input.value = "";
+        }
+      }
+    }
+
+    async function saveProductGallery(productIndex, button) {
+      const product = products[productIndex];
+      if (!product) return;
+
+      const pendingCount = getProductImages(product).filter(image => image.startsWith("data:image/")).length;
+      if (!pendingCount) {
+        alert("Não há novas fotos aguardando salvamento.");
+        return;
+      }
+
+      const originalText = button?.textContent || "Salvar fotos";
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Salvando...";
+      }
+
+      try {
+        await uploadPendingProductImages();
+        await saveAppStateNow();
+        renderProducts();
+        alert(`${pendingCount} foto(s) salva(s) no banco e publicada(s) na vitrine.`);
+      } catch (error) {
+        alert(error.message || "Não foi possível salvar as fotos no banco.");
+        renderBulkList();
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText;
         }
       }
     }
@@ -3582,6 +3596,19 @@
 
       const removed = product.images.splice(imageIndex, 1)[0];
       product.image = product.images[0] || "";
+
+      if (String(removed).startsWith("data:image/")) {
+        renderBulkList();
+        return;
+      }
+
+      if (hasPendingLocalProductImages()) {
+        product.images.splice(imageIndex, 0, removed);
+        product.image = product.images[0] || "";
+        renderBulkList();
+        alert("Salve primeiro as novas fotos pendentes antes de remover uma imagem já publicada.");
+        return;
+      }
 
       try {
         await saveAppStateNow();
