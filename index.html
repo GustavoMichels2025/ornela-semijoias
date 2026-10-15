@@ -674,7 +674,7 @@
 
     .bulk-row {
       display: grid;
-      grid-template-columns: 34px 1.1fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr 300px;
+      grid-template-columns: 34px 1.1fr 0.65fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr 300px;
       gap: 10px;
       align-items: center;
       padding: 12px;
@@ -3637,6 +3637,7 @@
         row.innerHTML = `
           <input type="checkbox" class="bulk-check" data-index="${index}">
           <input type="text" value="${escapeHtml(product.name)}" data-bulk-field="name" data-index="${index}" title="Nome">
+          <input type="text" value="${escapeHtml(product.code || "")}" data-bulk-field="code" data-index="${index}" title="Código/SKU" placeholder="Código/SKU">
           <input type="text" value="${escapeHtml(product.category)}" data-bulk-field="category" data-index="${index}" title="Categoria">
           <input type="text" value="${escapeHtml(product.price)}" data-bulk-field="price" data-index="${index}" title="Preço">
           <input type="number" value="${product.stock ?? 1}" data-bulk-field="stock" data-index="${index}" title="Estoque" min="0">
