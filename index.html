@@ -871,6 +871,19 @@
       display: none;
     }
 
+    body.admin-mode .hero,
+    body.admin-mode .filters-wrap,
+    body.admin-mode .section-title,
+    body.admin-mode .catalog-options,
+    body.admin-mode #productGrid,
+    body.admin-mode #emptyMessage {
+      display: none !important;
+    }
+
+    body.admin-mode .admin {
+      margin-top: 24px;
+    }
+
     .admin.open {
       display: block;
     }
@@ -2144,6 +2157,7 @@
 
       <div class="nav-actions">
         <a class="btn btn-light" id="instagramLink" href="https://www.instagram.com/ornelasemijoias" target="_blank">Instagram</a>
+        <button class="btn btn-light" type="button" id="toggleAdmin">Acesso da loja</button>
       </div>
     </nav>
   </header>
@@ -2195,10 +2209,6 @@
 
     <section class="grid" id="productGrid"></section>
     <p class="empty" id="emptyMessage">Vitrine em preparação. Em breve novas peças Ornela estarão disponíveis.</p>
-
-    <div class="admin-toggle-wrap">
-      <button class="btn btn-light" type="button" id="toggleAdmin">Acesso da loja</button>
-    </div>
 
     <section class="admin" id="adminArea">
       <div class="admin-shell-head">
