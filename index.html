@@ -3432,7 +3432,7 @@
       });
     }
 
-    function renderProducts() {
+    function renderProducts(refreshAdminList = true) {
       const search = searchInput.value.toLowerCase().trim();
       const showHidden = showHiddenToggle.checked;
 
@@ -3498,7 +3498,7 @@
 
       productCount.textContent = `${filtered.length} produto(s)`;
       emptyMessage.style.display = filtered.length ? "none" : "block";
-      renderBulkList();
+      if (refreshAdminList) renderBulkList();
       updateDashboard();
       saveAppState();
     }
@@ -5253,8 +5253,9 @@
         products[index][field] = event.target.value;
       }
 
-      renderCategories();
-      renderProducts();
+      // Mantém o campo, o foco e a posição da lista enquanto a pessoa digita.
+      // A vitrine é atualizada no evento "change", ao concluir a edição.
+      saveAppState();
     });
 
     bulkList.addEventListener("change", event => {
@@ -5273,7 +5274,7 @@
       }
 
       renderCategories();
-      renderProducts();
+      renderProducts(false);
     });
 
     function selectedBulkIndexes() {
