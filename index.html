@@ -2301,7 +2301,7 @@
     <section class="hero">
       <div class="hero-card">
         <div class="eyebrow" id="heroEyebrow">Escolhas da Ornela</div>
-        <h2 id="heroTitle">Semijoias escolhidas para iluminar sua rotina.</h2>
+        <h2 id="heroTitle">Feita para celebrar você</h2>
         <p id="heroText">Explore a vitrine, monte sua sacola com calma e envie seu pedido direto para a Ornela pelo WhatsApp.</p>
         <div>
           <a class="btn btn-primary" href="#catalogo">Ver a vitrine</a>
@@ -2772,7 +2772,7 @@
       whatsapp: "5541998212110",
       topMessage: "ORNELA SEMIJOIAS, FEITA PARA CELEBRAR VOCÊ!",
       heroEyebrow: "Escolhas da Ornela",
-      heroTitle: "Semijoias escolhidas para iluminar sua rotina.",
+      heroTitle: "Feita para celebrar você",
       heroText: "Explore a vitrine, monte sua sacola com calma e envie seu pedido direto para a Ornela pelo WhatsApp.",
       defaultMarkup: "4"
     };
@@ -2886,8 +2886,11 @@
       if (hasOnlyDemoProducts) products = [];
       if (saved.storeConfig) Object.assign(storeConfig, saved.storeConfig);
       if (storeConfig.whatsapp === "5541996231107") storeConfig.whatsapp = "5541998212110";
-      if (storeConfig.heroTitle === "Peças para deixar seu dia mais bonito.") {
-        storeConfig.heroTitle = "Semijoias escolhidas para iluminar sua rotina.";
+      if ([
+        "Peças para deixar seu dia mais bonito.",
+        "Semijoias escolhidas para iluminar sua rotina."
+      ].includes(storeConfig.heroTitle)) {
+        storeConfig.heroTitle = "Feita para celebrar você";
       }
       if (storeConfig.heroText === "Veja as novidades, salve suas favoritas e chame a gente no WhatsApp para consultar disponibilidade, combinações e formas de pagamento.") {
         storeConfig.heroText = "Explore a vitrine, monte sua sacola com calma e envie seu pedido direto para a Ornela pelo WhatsApp.";
@@ -5279,7 +5282,7 @@
       storeConfig.instagram = document.getElementById("configInstagram").value.trim() || "https://www.instagram.com/ornelasemijoias";
       storeConfig.topMessage = document.getElementById("configTopMessage").value.trim() || storeConfig.storeName;
       storeConfig.heroEyebrow = document.getElementById("configHeroEyebrow").value.trim() || "Escolhas da loja";
-      storeConfig.heroTitle = document.getElementById("configHeroTitle").value.trim() || "Semijoias escolhidas para iluminar sua rotina.";
+      storeConfig.heroTitle = document.getElementById("configHeroTitle").value.trim() || "Feita para celebrar você";
       storeConfig.heroText = document.getElementById("configHeroText").value.trim() || "";
       storeConfig.defaultMarkup = document.getElementById("configDefaultMarkup").value || "4";
 
