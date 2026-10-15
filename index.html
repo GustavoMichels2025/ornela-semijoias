@@ -1839,13 +1839,72 @@
       z-index: 1;
     }
 
+    .hero {
+      grid-template-columns: 1fr;
+      max-width: 1180px;
+    }
+
+    .hero-card {
+      min-height: 410px;
+      padding: clamp(46px, 7vw, 82px);
+      align-items: center;
+      text-align: center;
+      border: 1px solid rgba(128, 98, 37, .16);
+      background:
+        radial-gradient(circle at 12% 18%, rgba(216, 188, 125, .24), transparent 28%),
+        radial-gradient(circle at 88% 82%, rgba(216, 183, 163, .22), transparent 30%),
+        linear-gradient(135deg, rgba(255,253,249,.98), rgba(244,234,219,.94));
+      box-shadow: 0 24px 65px rgba(67, 52, 38, .12);
+    }
+
+    .hero-card::after {
+      width: 360px;
+      height: 360px;
+      right: -150px;
+      bottom: -190px;
+      border-color: rgba(128, 98, 37, .18);
+    }
+
+    .hero-card::before {
+      right: 50%;
+      bottom: -30px;
+      transform: translateX(50%);
+      color: rgba(128,98,37,.045);
+      font-size: clamp(76px, 13vw, 150px);
+      letter-spacing: clamp(8px, 2vw, 18px);
+      white-space: nowrap;
+    }
+
+    .hero .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 7px 15px;
+      border: 1px solid rgba(128, 98, 37, .18);
+      border-radius: 999px;
+      background: rgba(255, 253, 249, .72);
+      letter-spacing: 3.2px;
+    }
+
     .hero h2 {
-      max-width: 720px;
+      max-width: 900px;
       color: #211a16;
+      font-size: clamp(42px, 6.5vw, 78px);
+      line-height: .96;
     }
 
     .hero p {
-      max-width: 660px;
+      max-width: 720px;
+      margin-inline: auto;
+      font-size: 17px;
+      line-height: 1.75;
+    }
+
+    .hero-card .btn-primary {
+      min-width: 190px;
+      padding: 14px 24px;
+      letter-spacing: .4px;
+      box-shadow: 0 14px 30px rgba(140, 106, 41, .22);
     }
 
     .mini-card strong::after,
@@ -2088,10 +2147,9 @@
       .brand span { font-size: 11px; line-height: 1.35; }
       .nav-actions .btn { min-height: 42px; padding: 10px 14px; }
       .hero { margin-top: 20px; }
-      .hero-card { padding: 32px 22px; border-radius: 26px; min-height: auto; }
+      .hero-card { padding: 44px 22px; border-radius: 26px; min-height: 360px; }
       .hero h2 { font-size: clamp(34px, 10vw, 44px); letter-spacing: -1.4px; }
       .hero p { font-size: 14px; }
-      .mini-card { min-height: 145px; }
       .filters { padding: 12px; border-radius: 22px; }
       .search { min-height: 46px; font-size: 14px; }
       .category-buttons { gap: 8px; }
@@ -2170,17 +2228,6 @@
         <p id="heroText">Explore a vitrine, monte sua sacola com calma e envie seu pedido direto para a Ornela pelo WhatsApp.</p>
         <div>
           <a class="btn btn-primary" href="#catalogo">Ver a vitrine</a>
-        </div>
-      </div>
-
-      <div class="hero-side">
-        <div class="mini-card">
-          <strong>Curadoria especial</strong>
-          <p>Uma vitrine pensada para facilitar sua escolha: do básico delicado ao brilho que rouba a cena.</p>
-        </div>
-        <div class="mini-card">
-          <strong>Atendimento próximo</strong>
-          <p>Gostou de uma peça? O botão já chama a Ornela com o produto escolhido, sem complicação.</p>
         </div>
       </div>
     </section>
