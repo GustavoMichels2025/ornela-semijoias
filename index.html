@@ -629,6 +629,24 @@
     .new-category-box.open { display: grid; }
     .new-category-box span { color: var(--muted); font-size: 12px; }
 
+    .category-selector-row {
+      grid-column: span 2;
+      display: grid;
+      grid-template-columns: minmax(190px, 1fr) auto;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .category-selector-row select {
+      min-height: 142px;
+      overflow-y: auto;
+    }
+
+    .category-selector-row .btn {
+      align-self: end;
+      min-height: 44px;
+    }
+
     .preview {
       width: 100%;
       max-width: 160px;
@@ -2388,6 +2406,8 @@
       .order-edit-summary { grid-template-columns: 1fr 1fr; }
       .product-import-box { grid-template-columns: 1fr; }
       .product-import-status { grid-column: auto; }
+      .category-selector-row { grid-column: 1 / -1; grid-template-columns: 1fr; }
+      .category-selector-row .btn { width: 100%; }
     }
 
     @media (max-width: 420px) {
@@ -2822,9 +2842,12 @@
           </div>
 
           <input type="text" id="name" placeholder="Nome do produto" required />
-          <select id="category" required>
-            <option value="">Selecione a categoria</option>
-          </select>
+          <div class="category-selector-row">
+            <select id="category" size="5" required aria-label="Categorias disponíveis">
+              <option value="">Selecione a categoria</option>
+            </select>
+            <button class="btn btn-light" type="button" id="showNewCategory">＋ Nova categoria</button>
+          </div>
           <div class="new-category-box" id="newCategoryBox">
             <input type="text" id="newCategory" placeholder="Nome da nova categoria">
             <span>A categoria será adicionada ao salvar o produto.</span>
@@ -2990,6 +3013,7 @@
     const productCategorySelect = document.getElementById("category");
     const newCategoryBox = document.getElementById("newCategoryBox");
     const newCategoryInput = document.getElementById("newCategory");
+    const showNewCategory = document.getElementById("showNewCategory");
     const imageViewer = document.getElementById("imageViewer");
     const imageViewerPhoto = document.getElementById("imageViewerPhoto");
     const imageViewerCaption = document.getElementById("imageViewerCaption");
@@ -5601,6 +5625,10 @@
     });
 
     productCategorySelect.addEventListener("change", () => updateNewCategoryVisibility(true));
+    showNewCategory.addEventListener("click", () => {
+      productCategorySelect.value = "__new__";
+      updateNewCategoryVisibility(true);
+    });
 
     form.addEventListener("submit", async event => {
       event.preventDefault();
