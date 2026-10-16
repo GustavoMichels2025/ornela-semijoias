@@ -235,10 +235,34 @@
       width: 100%;
       border: 1px solid rgba(201, 162, 77, 0.28);
       border-radius: 999px;
-      padding: 14px 18px;
+      padding: 14px 18px 14px 48px;
       outline: none;
       font-size: 15px;
       background: #fbf7f2;
+    }
+
+    .catalog-search-field {
+      position: relative;
+      min-width: 0;
+    }
+
+    .catalog-search-field::before {
+      content: "⌕";
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      z-index: 1;
+      color: var(--gold-dark);
+      font-size: 23px;
+      line-height: 1;
+      transform: translateY(-52%);
+      pointer-events: none;
+    }
+
+    .catalog-search-field .search:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 4px rgba(201, 162, 77, .12);
+      background: #fff;
     }
 
     .category-buttons {
@@ -2489,7 +2513,10 @@
 
     <section class="filters-wrap" id="catalogo">
       <div class="filters">
-        <input id="searchInput" class="search" type="search" placeholder="Procure por brinco, anel, colar, código..." />
+        <div class="catalog-search-field">
+          <input id="searchInput" class="search" type="search"
+            placeholder="Digite parte do nome da peça..." aria-label="Buscar produtos pelo nome" autocomplete="off" />
+        </div>
         <div class="category-buttons" id="categoryButtons"></div>
       </div>
     </section>
@@ -4126,8 +4153,17 @@
       refreshProductCategorySelect();
     }
 
+    function normalizeCatalogSearch(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+
     function renderProducts(refreshAdminList = true) {
-      const search = searchInput.value.toLowerCase().trim();
+      const searchTerms = normalizeCatalogSearch(searchInput.value).split(/\s+/).filter(Boolean);
       const showHidden = showHiddenToggle.checked;
 
       const filtered = products
@@ -4136,10 +4172,13 @@
           const availableStock = Number(product.stock ?? 1);
           const matchVisibility = showHidden || (!product.hidden && availableStock > 0);
           const matchCategory = selectedCategory === "Todos" || product.category === selectedCategory;
-          const matchSearch =
-            product.name.toLowerCase().includes(search) ||
-            product.category.toLowerCase().includes(search) ||
-            (product.code || "").toLowerCase().includes(search);
+          const searchableProduct = normalizeCatalogSearch([
+            product.name,
+            product.description,
+            product.category,
+            product.code
+          ].filter(Boolean).join(" "));
+          const matchSearch = searchTerms.every(term => searchableProduct.includes(term));
 
           return matchVisibility && matchCategory && matchSearch;
         });
@@ -6625,7 +6664,13 @@
       printWindow.print();
     });
 
-    searchInput.addEventListener("input", renderProducts);
+    searchInput.addEventListener("input", () => {
+      if (searchInput.value.trim() && selectedCategory !== "Todos") {
+        selectedCategory = "Todos";
+        renderCategories();
+      }
+      renderProducts();
+    });
     adminProductSearch.addEventListener("input", renderBulkList);
     document.querySelectorAll("[data-admin-tab]").forEach(button => {
       button.addEventListener("click", () => switchAdminTab(button.dataset.adminTab));
