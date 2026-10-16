@@ -3353,6 +3353,24 @@
       return products.find(product => product._ornelaId === key);
     }
 
+    function currentProductDescription(product) {
+      return String(product?.description || product?.name || product?.code || "Produto sem descrição").trim();
+    }
+
+    function syncResellerInventoryWithCatalog() {
+      resellers.forEach(reseller => {
+        (reseller.inventory || []).forEach(item => {
+          const product = findProductByKey(item.productKey);
+          if (!product) return;
+
+          item.name = product.name || item.name;
+          item.description = currentProductDescription(product);
+          item.code = product.code || "";
+          item.price = product.price;
+        });
+      });
+    }
+
     function resellerStockTotal(reseller) {
       return (reseller.inventory || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
     }
@@ -3405,7 +3423,7 @@
       transferProduct.innerHTML =
         '<option value="">Selecione um item da vitrine</option>' +
         availableProducts.map(product =>
-          `<option value="${product._ornelaId}">${escapeHtml(product.name)} • ${escapeHtml(product.code || "sem código")} — saldo ${Number(product.stock || 0)}</option>`
+          `<option value="${product._ornelaId}">${escapeHtml(currentProductDescription(product))} • ${escapeHtml(product.code || "sem código")} — saldo ${Number(product.stock || 0)}</option>`
         ).join("");
 
       renderSaleProducts();
@@ -3417,7 +3435,7 @@
       saleProduct.innerHTML =
         '<option value="">Selecione um item com a revendedora</option>' +
         inventory.filter(item => Number(item.qty || 0) > 0).map(item =>
-          `<option value="${item.productKey}">${escapeHtml(item.name)} — saldo ${Number(item.qty || 0)}</option>`
+          `<option value="${item.productKey}">${escapeHtml(item.description || item.name)} — saldo ${Number(item.qty || 0)}</option>`
         ).join("");
     }
 
@@ -3465,7 +3483,7 @@
             </div>
             ${inventory.length ? inventory.map(item => `
               <div class="reseller-stock-row">
-                <div><strong>${escapeHtml(item.name)}</strong><br><small>Código: ${escapeHtml(item.code || "sem código")} — R$ ${escapeHtml(item.price)}</small></div>
+                <div><strong>${escapeHtml(item.description || item.name)}</strong><br><small>Código: ${escapeHtml(item.code || "sem código")} — R$ ${escapeHtml(item.price)}</small></div>
                 <strong>${Number(item.qty || 0)} un.</strong>
                 <button type="button" onclick="returnResellerItem('${reseller.id}','${item.productKey}')">Devolver item</button>
               </div>
@@ -3507,7 +3525,7 @@
           <h4 style="margin:20px 0 8px;">Estoque atual</h4>
           ${inventory.length ? inventory.map(item => `
             <div class="reseller-sale-row">
-              <span>${escapeHtml(item.name)} • ${escapeHtml(item.code || "sem código")}</span>
+              <span>${escapeHtml(item.description || item.name)} • ${escapeHtml(item.code || "sem código")}</span>
               <strong>${Number(item.qty || 0)} un.</strong>
               <span>R$ ${numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))}</span>
             </div>
@@ -3526,6 +3544,7 @@
 
     function renderResellers() {
       ensureProductIds();
+      syncResellerInventoryWithCatalog();
       renderResellerSelectors();
       renderResellerRegistry();
       renderResellerStock();
@@ -5864,7 +5883,7 @@
 
     showHiddenToggle.addEventListener("change", renderProducts);
 
-    editForm.addEventListener("submit", event => {
+    editForm.addEventListener("submit", async event => {
       event.preventDefault();
 
       const index = Number(document.getElementById("editIndex").value);
@@ -5890,12 +5909,19 @@
         hidden: document.getElementById("editHidden").value === "true" || Number(document.getElementById("editStock").value || 0) <= 0
       };
 
-      editModal.classList.remove("open");
       document.getElementById("bulkCategory").value = "";
       document.getElementById("bulkPercent").value = "";
       document.getElementById("bulkTag").value = "";
       renderCategories();
       renderProducts();
+      renderResellers();
+
+      try {
+        await saveAppStateNow();
+        editModal.classList.remove("open");
+      } catch (error) {
+        alert(error.message || "A alteração foi mantida neste dispositivo, mas não foi possível salvá-la no banco.");
+      }
     });
 
     document.getElementById("cancelEdit").addEventListener("click", () => {
@@ -5945,6 +5971,7 @@
 
       renderCategories();
       renderProducts(false);
+      renderResellers();
     });
 
     function selectedBulkIndexes() {
@@ -6232,7 +6259,7 @@
       alert(existing ? "Cadastro atualizado." : "Revendedora cadastrada.");
     });
 
-    document.getElementById("transferToReseller").addEventListener("click", () => {
+    document.getElementById("transferToReseller").addEventListener("click", async () => {
       const reseller = resellers.find(item => item.id === transferReseller.value);
       const product = findProductByKey(transferProduct.value);
       const qty = Number(document.getElementById("transferQty").value);
@@ -6249,16 +6276,19 @@
 
       reseller.inventory = reseller.inventory || [];
       const existingItem = reseller.inventory.find(item => item.productKey === product._ornelaId);
+      const currentDescription = currentProductDescription(product);
 
       if (existingItem) {
         existingItem.qty += qty;
         existingItem.price = product.price;
         existingItem.name = product.name;
+        existingItem.description = currentDescription;
         existingItem.code = product.code;
       } else {
         reseller.inventory.push({
           productKey: product._ornelaId,
           name: product.name,
+          description: currentDescription,
           code: product.code || "",
           price: product.price,
           qty
@@ -6272,7 +6302,13 @@
       renderCategories();
       renderProducts();
       renderResellers();
-      alert(`${qty} unidade(s) transferida(s) para ${reseller.name}.`);
+
+      try {
+        await saveAppStateNow();
+        alert(`${qty} unidade(s) de “${currentDescription}” transferida(s) para ${reseller.name} e salva(s) no banco.`);
+      } catch (error) {
+        alert(error.message || "A transferência foi mantida neste dispositivo, mas não foi possível salvá-la no banco.");
+      }
     });
 
     saleReseller.addEventListener("change", renderSaleProducts);
