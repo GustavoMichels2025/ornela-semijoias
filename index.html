@@ -1868,10 +1868,6 @@
       margin-bottom: 16px;
     }
 
-    .reseller-operation.transfer-operation {
-      grid-template-columns: 1.1fr .8fr 1.6fr .5fr auto;
-    }
-
     .reseller-cards {
       display: grid;
       gap: 12px;
@@ -2402,7 +2398,6 @@
       .login-card { padding: 26px; }
       .reseller-form { grid-template-columns: 1fr 1fr; }
       .reseller-operation { grid-template-columns: 1fr; }
-      .reseller-operation.transfer-operation { grid-template-columns: 1fr; }
       .reseller-kpis { grid-template-columns: 1fr; }
       .order-item-editor { grid-template-columns: 1fr 82px 115px; }
       .order-item-editor > div:first-child { grid-column: 1 / -1; }
@@ -2619,9 +2614,8 @@
 
         <div class="reseller-panel" data-reseller-panel="stock">
           <h4 style="margin-bottom:10px;">Enviar itens para revendedora</h4>
-          <div class="reseller-operation transfer-operation">
+          <div class="reseller-operation">
             <select id="transferReseller"></select>
-            <input type="search" id="transferProductCodeSearch" placeholder="Buscar pelo código" autocomplete="off">
             <select id="transferProduct"></select>
             <input type="number" id="transferQty" min="1" value="1" placeholder="Qtd.">
             <button class="btn btn-primary" type="button" id="transferToReseller">Transferir item</button>
@@ -3081,7 +3075,6 @@
     const adminLoginError = document.getElementById("adminLoginError");
     const resellerForm = document.getElementById("resellerForm");
     const transferReseller = document.getElementById("transferReseller");
-    const transferProductCodeSearch = document.getElementById("transferProductCodeSearch");
     const transferProduct = document.getElementById("transferProduct");
     const saleReseller = document.getElementById("saleReseller");
     const saleProduct = document.getElementById("saleProduct");
@@ -3409,29 +3402,6 @@
       }`;
     }
 
-    function renderTransferProductOptions() {
-      const currentProduct = transferProduct.value;
-      const codeSearch = normalizeCode(transferProductCodeSearch?.value || "");
-      const availableProducts = products
-        .filter(product => Number(product.stock || 0) > 0)
-        .filter(product => !codeSearch || normalizeCode(product.code || "").includes(codeSearch))
-        .sort((a, b) => currentProductDescription(a).localeCompare(
-          currentProductDescription(b),
-          "pt-BR",
-          { sensitivity: "base", numeric: true }
-        ));
-
-      transferProduct.innerHTML = availableProducts.length
-        ? '<option value="">Selecione um item da vitrine</option>' + availableProducts.map(product =>
-            `<option value="${product._ornelaId}">${escapeHtml(currentProductDescription(product))} • ${escapeHtml(product.code || "sem código")} — saldo ${Number(product.stock || 0)}</option>`
-          ).join("")
-        : '<option value="">Nenhum item encontrado para esse código</option>';
-
-      if (availableProducts.some(product => product._ornelaId === currentProduct)) {
-        transferProduct.value = currentProduct;
-      }
-    }
-
     function renderResellerSelectors() {
       const currentTransfer = transferReseller.value;
       const currentSale = saleReseller.value;
@@ -3449,7 +3419,12 @@
       if (resellers.some(item => item.id === currentSale)) saleReseller.value = currentSale;
       if (resellers.some(item => item.id === currentReport)) reportReseller.value = currentReport;
 
-      renderTransferProductOptions();
+      const availableProducts = products.filter(product => Number(product.stock || 0) > 0);
+      transferProduct.innerHTML =
+        '<option value="">Selecione um item da vitrine</option>' +
+        availableProducts.map(product =>
+          `<option value="${product._ornelaId}">${escapeHtml(currentProductDescription(product))} • ${escapeHtml(product.code || "sem código")} — saldo ${Number(product.stock || 0)}</option>`
+        ).join("");
 
       renderSaleProducts();
     }
@@ -6283,8 +6258,6 @@
       renderResellers();
       alert(existing ? "Cadastro atualizado." : "Revendedora cadastrada.");
     });
-
-    transferProductCodeSearch.addEventListener("input", renderTransferProductOptions);
 
     document.getElementById("transferToReseller").addEventListener("click", async () => {
       const reseller = resellers.find(item => item.id === transferReseller.value);
