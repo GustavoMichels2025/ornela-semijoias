@@ -634,16 +634,14 @@
       display: grid;
       grid-template-columns: minmax(190px, 1fr) auto;
       gap: 10px;
-      align-items: stretch;
+      align-items: center;
     }
 
     .category-selector-row select {
-      min-height: 142px;
-      overflow-y: auto;
+      min-height: 44px;
     }
 
     .category-selector-row .btn {
-      align-self: end;
       min-height: 44px;
     }
 
@@ -2843,7 +2841,7 @@
 
           <input type="text" id="name" placeholder="Nome do produto" required />
           <div class="category-selector-row">
-            <select id="category" size="5" required aria-label="Categorias disponíveis">
+            <select id="category" required aria-label="Categorias disponíveis">
               <option value="">Selecione a categoria</option>
             </select>
             <button class="btn btn-light" type="button" id="showNewCategory">＋ Nova categoria</button>
