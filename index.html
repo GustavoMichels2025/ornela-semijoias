@@ -1872,6 +1872,27 @@
       grid-template-columns: 1.1fr .8fr 1.6fr .5fr auto;
     }
 
+    .transfer-product-preview {
+      grid-column: 1 / -1;
+      display: none;
+      grid-template-columns: 64px minmax(0, 1fr) repeat(3, auto);
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid rgba(128, 98, 37, .18);
+      border-radius: 15px;
+      background: #fffaf4;
+      color: var(--text);
+    }
+
+    .transfer-product-preview.open { display: grid; }
+    .transfer-product-preview.not-found { display: block; color: var(--danger); }
+    .transfer-product-preview img { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; background: var(--soft); }
+    .transfer-product-preview-photo-empty { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 10px; text-align: center; }
+    .transfer-product-preview strong { display: block; margin-bottom: 3px; }
+    .transfer-product-preview small { color: var(--muted); }
+    .transfer-product-preview span { font-size: 12px; font-weight: 700; white-space: nowrap; }
+
     .reseller-cards {
       display: grid;
       gap: 12px;
@@ -2403,6 +2424,10 @@
       .reseller-form { grid-template-columns: 1fr 1fr; }
       .reseller-operation { grid-template-columns: 1fr; }
       .reseller-operation.transfer-operation { grid-template-columns: 1fr; }
+      .transfer-product-preview { grid-template-columns: 52px 1fr; }
+      .transfer-product-preview span { grid-column: 2; white-space: normal; }
+      .transfer-product-preview img { width: 52px; height: 52px; }
+      .transfer-product-preview-photo-empty { width: 52px; height: 52px; }
       .reseller-kpis { grid-template-columns: 1fr; }
       .order-item-editor { grid-template-columns: 1fr 82px 115px; }
       .order-item-editor > div:first-child { grid-column: 1 / -1; }
@@ -2625,6 +2650,7 @@
             <select id="transferProduct"></select>
             <input type="number" id="transferQty" min="1" value="1" placeholder="Qtd.">
             <button class="btn btn-primary" type="button" id="transferToReseller">Transferir item</button>
+            <div class="transfer-product-preview" id="transferProductPreview" aria-live="polite"></div>
           </div>
 
           <h4 style="margin:22px 0 10px;">Registrar venda da revendedora</h4>
@@ -3083,6 +3109,7 @@
     const transferReseller = document.getElementById("transferReseller");
     const transferProductCodeSearch = document.getElementById("transferProductCodeSearch");
     const transferProduct = document.getElementById("transferProduct");
+    const transferProductPreview = document.getElementById("transferProductPreview");
     const saleReseller = document.getElementById("saleReseller");
     const saleProduct = document.getElementById("saleProduct");
     const reportReseller = document.getElementById("reportReseller");
@@ -3409,6 +3436,31 @@
       }`;
     }
 
+    function renderTransferProductPreview(product, message = "") {
+      transferProductPreview.className = "transfer-product-preview";
+
+      if (!product) {
+        transferProductPreview.innerHTML = message ? escapeHtml(message) : "";
+        if (message) transferProductPreview.classList.add("not-found");
+        return;
+      }
+
+      const image = getProductImages(product).find(hasUsableProductImage);
+      transferProductPreview.innerHTML = `
+        ${image
+          ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name || "Produto")}">`
+          : '<div class="transfer-product-preview-photo-empty">Sem foto</div>'}
+        <div>
+          <strong>${escapeHtml(currentProductDescription(product))}</strong>
+          <small>${escapeHtml(product.name || "Produto sem nome")}</small>
+        </div>
+        <span>Código: ${escapeHtml(product.code || "sem código")}</span>
+        <span>Categoria: ${escapeHtml(product.category || "sem categoria")}</span>
+        <span>R$ ${escapeHtml(product.price || "0,00")} • Saldo: ${Number(product.stock || 0)}</span>
+      `;
+      transferProductPreview.classList.add("open");
+    }
+
     function renderTransferProductOptions() {
       const currentProduct = transferProduct.value;
       const codeSearch = normalizeCode(transferProductCodeSearch?.value || "");
@@ -3425,6 +3477,8 @@
       if (availableProducts.some(product => product._ornelaId === currentProduct)) {
         transferProduct.value = currentProduct;
       }
+
+      renderTransferProductPreview(findProductByKey(transferProduct.value));
     }
 
     function renderResellerSelectors() {
@@ -6280,6 +6334,32 @@
     });
 
     transferProductCodeSearch.addEventListener("input", renderTransferProductOptions);
+    transferProductCodeSearch.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+
+      const searchedCode = normalizeCode(transferProductCodeSearch.value || "");
+      if (!searchedCode) {
+        renderTransferProductPreview(null, "Digite o código do item antes de pressionar Enter.");
+        return;
+      }
+
+      const availableProducts = products.filter(product => Number(product.stock || 0) > 0);
+      const product = availableProducts.find(item => normalizeCode(item.code || "") === searchedCode)
+        || availableProducts.find(item => normalizeCode(item.code || "").includes(searchedCode));
+
+      if (!product) {
+        transferProduct.value = "";
+        renderTransferProductPreview(null, `Nenhum item disponível encontrado para o código ${transferProductCodeSearch.value.trim()}.`);
+        return;
+      }
+
+      transferProduct.value = product._ornelaId;
+      renderTransferProductPreview(product);
+    });
+    transferProduct.addEventListener("change", () => {
+      renderTransferProductPreview(findProductByKey(transferProduct.value));
+    });
 
     document.getElementById("transferToReseller").addEventListener("click", async () => {
       const reseller = resellers.find(item => item.id === transferReseller.value);
