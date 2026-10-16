@@ -1703,6 +1703,33 @@
       backdrop-filter: blur(12px);
     }
 
+    .admin-save-cluster {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding-left: 8px;
+    }
+
+    .admin-save-all {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 17px;
+      background: linear-gradient(135deg, #2f7650, #1f583a);
+      color: #fff;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(31,88,58,.22);
+      white-space: nowrap;
+    }
+
+    .admin-save-all:disabled { opacity: .62; cursor: wait; }
+    .admin-save-status { max-width: 170px; color: var(--muted); font-size: 10px; line-height: 1.25; }
+    .admin-save-status.saved { color: #1f7650; font-weight: 700; }
+    .admin-save-status.error { color: var(--danger); font-weight: 700; }
+
     .admin-tab {
       border: 1px solid rgba(201,162,77,.22);
       background: #fffaf2;
@@ -2442,6 +2469,8 @@
       .whatsapp-float { right: 12px; bottom: 16px; width: 54px; height: 54px; }
       .cart-panel { right: 10px; bottom: 145px; width: calc(100vw - 20px); max-height: 66vh; border-radius: 22px; }
       .admin-shell-head { align-items: flex-start; flex-direction: column; }
+      .admin-save-cluster { width: 100%; margin-left: 0; padding-left: 0; order: -1; }
+      .admin-save-all { flex: 1; }
       .admin-box { padding: 18px; border-radius: 22px; overflow-x: auto; }
       .security-row { grid-template-columns: 1fr; }
       .login-card { padding: 26px; }
@@ -2561,6 +2590,10 @@
         <button class="admin-tab" type="button" data-admin-tab="resellers">Revendedoras</button>
         <button class="admin-tab" type="button" data-admin-tab="settings">Configurações</button>
         <button class="admin-tab" type="button" data-admin-tab="security">Segurança</button>
+        <div class="admin-save-cluster">
+          <button class="admin-save-all" type="button" id="saveAllChanges">Salvar alterações</button>
+          <span class="admin-save-status" id="saveAllStatus">Salva produtos, fotos e demais alterações no banco.</span>
+        </div>
       </div>
 
       <div class="admin-box active" data-admin-panel="dashboard">
@@ -3081,6 +3114,8 @@
     const showHiddenToggle = document.getElementById("showHiddenToggle");
     const adminProductSearch = document.getElementById("adminProductSearch");
     const adminProductSearchStatus = document.getElementById("adminProductSearchStatus");
+    const saveAllChanges = document.getElementById("saveAllChanges");
+    const saveAllStatus = document.getElementById("saveAllStatus");
     const bulkList = document.getElementById("bulkList");
     const editModal = document.getElementById("editModal");
     const editForm = document.getElementById("editForm");
@@ -3292,6 +3327,43 @@
       if (!response.ok) {
         const detail = await response.text().catch(() => "");
         throw new Error(`Não foi possível salvar no banco. ${detail}`);
+      }
+    }
+
+    async function saveAllAdminChanges() {
+      const originalText = saveAllChanges.textContent;
+      saveAllChanges.disabled = true;
+      saveAllChanges.textContent = "Salvando...";
+      saveAllStatus.className = "admin-save-status";
+      saveAllStatus.textContent = "Enviando todas as alterações para o banco...";
+
+      try {
+        ensureProductIds();
+        syncResellerInventoryWithCatalog();
+        const uploadedCount = hasPendingLocalProductImages()
+          ? await uploadPendingProductImages()
+          : 0;
+
+        renderCategories();
+        renderProducts();
+        renderResellers();
+        renderCustomers();
+        renderOrdersHistory();
+        await saveAppStateNow();
+
+        const savedAt = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        const imageMessage = uploadedCount ? ` ${uploadedCount} foto(s) enviada(s).` : "";
+        const xmlMessage = importedXmlItems.length
+          ? " XML carregado: use Confirmar entrada para incluir os itens."
+          : "";
+        saveAllStatus.textContent = `Tudo salvo às ${savedAt}.${imageMessage}${xmlMessage}`;
+        saveAllStatus.classList.add("saved");
+      } catch (error) {
+        saveAllStatus.textContent = error.message || "Não foi possível salvar as alterações.";
+        saveAllStatus.classList.add("error");
+      } finally {
+        saveAllChanges.disabled = false;
+        saveAllChanges.textContent = originalText;
       }
     }
 
@@ -6672,6 +6744,7 @@
       renderProducts();
     });
     adminProductSearch.addEventListener("input", renderBulkList);
+    saveAllChanges.addEventListener("click", saveAllAdminChanges);
     document.querySelectorAll("[data-admin-tab]").forEach(button => {
       button.addEventListener("click", () => switchAdminTab(button.dataset.adminTab));
     });
