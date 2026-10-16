@@ -3595,7 +3595,12 @@
     }
 
     function currentProductDescription(product) {
-      return String(product?.description || product?.name || product?.code || "Produto sem descrição").trim();
+      return String(product?.name || product?.description || product?.code || "Produto sem nome").trim();
+    }
+
+    function currentResellerItemName(item) {
+      const product = findProductByKey(item?.productKey);
+      return currentProductDescription(product || item);
     }
 
     function syncResellerInventoryWithCatalog() {
@@ -3608,6 +3613,14 @@
           item.description = currentProductDescription(product);
           item.code = product.code || "";
           item.price = product.price;
+        });
+
+        (reseller.sales || []).forEach(sale => {
+          const product = findProductByKey(sale.productKey);
+          if (!product) return;
+
+          sale.name = currentProductDescription(product);
+          sale.code = product.code || sale.code || "";
         });
       });
     }
@@ -3716,7 +3729,7 @@
       saleProduct.innerHTML =
         '<option value="">Selecione um item com a revendedora</option>' +
         inventory.filter(item => Number(item.qty || 0) > 0).map(item =>
-          `<option value="${item.productKey}">${escapeHtml(item.description || item.name)} — saldo ${Number(item.qty || 0)}</option>`
+          `<option value="${item.productKey}">${escapeHtml(currentResellerItemName(item))} — saldo ${Number(item.qty || 0)}</option>`
         ).join("");
     }
 
@@ -3764,7 +3777,7 @@
             </div>
             ${inventory.length ? inventory.map(item => `
               <div class="reseller-stock-row">
-                <div><strong>${escapeHtml(item.description || item.name)}</strong><br><small>Código: ${escapeHtml(item.code || "sem código")} — R$ ${escapeHtml(item.price)}</small></div>
+                <div><strong>${escapeHtml(currentResellerItemName(item))}</strong><br><small>Código: ${escapeHtml(item.code || "sem código")} — R$ ${escapeHtml(item.price)}</small></div>
                 <strong>${Number(item.qty || 0)} un.</strong>
                 <button type="button" onclick="returnResellerItem('${reseller.id}','${item.productKey}')">Devolver item</button>
               </div>
@@ -3806,7 +3819,7 @@
           <h4 style="margin:20px 0 8px;">Estoque atual</h4>
           ${inventory.length ? inventory.map(item => `
             <div class="reseller-sale-row">
-              <span>${escapeHtml(item.description || item.name)} • ${escapeHtml(item.code || "sem código")}</span>
+              <span>${escapeHtml(currentResellerItemName(item))} • ${escapeHtml(item.code || "sem código")}</span>
               <strong>${Number(item.qty || 0)} un.</strong>
               <span>R$ ${numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))}</span>
             </div>
@@ -6783,7 +6796,6 @@
   </script>
 </body>
 </html>
-
 
 
 
