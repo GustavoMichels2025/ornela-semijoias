@@ -543,6 +543,21 @@
     .form .wide { grid-column: span 2; }
     .form .full { grid-column: 1 / -1; }
 
+    .new-category-box {
+      grid-column: 1 / -1;
+      display: none;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px dashed rgba(128, 98, 37, .24);
+      border-radius: 16px;
+      background: #fbf7f2;
+    }
+
+    .new-category-box.open { display: grid; }
+    .new-category-box span { color: var(--muted); font-size: 12px; }
+
     .preview {
       width: 100%;
       max-width: 160px;
@@ -1141,6 +1156,41 @@
       color: var(--gold-dark);
       text-align: center;
     }
+
+    .cart-customer-code {
+      display: grid;
+      gap: 6px;
+      margin: 10px 0 14px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .cart-customer-code input {
+      width: 100%;
+      border: 1px solid rgba(201, 162, 77, .28);
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: #fff;
+      font: inherit;
+      letter-spacing: 2px;
+      outline: none;
+    }
+
+    .order-customer-link {
+      display: grid;
+      grid-template-columns: minmax(150px, 220px) 1fr;
+      gap: 10px;
+      align-items: end;
+      margin: 14px 0;
+      padding: 12px;
+      border-radius: 14px;
+      background: #fbf7f2;
+      border: 1px solid rgba(201, 162, 77, .16);
+    }
+
+    .order-customer-link label { display: grid; gap: 5px; font-size: 11px; color: var(--muted); }
+    .order-customer-link input { width: 100%; padding: 10px; border: 1px solid rgba(201,162,77,.28); border-radius: 10px; }
 
     .orders-list {
       display: grid;
@@ -2352,6 +2402,7 @@
         <button class="admin-tab" type="button" data-admin-tab="xml">XML</button>
         <button class="admin-tab" type="button" data-admin-tab="photos">Fotos</button>
         <button class="admin-tab" type="button" data-admin-tab="orders">Pedidos</button>
+        <button class="admin-tab" type="button" data-admin-tab="customers">Clientes</button>
         <button class="admin-tab" type="button" data-admin-tab="resellers">Revendedoras</button>
         <button class="admin-tab" type="button" data-admin-tab="settings">Configurações</button>
         <button class="admin-tab" type="button" data-admin-tab="security">Segurança</button>
@@ -2384,6 +2435,10 @@
           <div class="dashboard-card">
             <span>Revendedoras</span>
             <strong id="dashResellers">0</strong>
+          </div>
+          <div class="dashboard-card">
+            <span>Clientes</span>
+            <strong id="dashCustomers">0</strong>
           </div>
         </div>
         <div class="xml-actions">
@@ -2524,7 +2579,7 @@
         </p>
 
         <div class="xml-actions">
-          <input type="text" id="orderSearch" placeholder="Buscar código do pedido. Ex: ORN-2406-001">
+          <input type="text" id="orderSearch" placeholder="Buscar pedido, código ou nome da cliente">
           <button class="btn btn-primary" type="button" id="refreshOrders">Atualizar pedidos</button>
           <button class="btn btn-light" type="button" id="clearOrders">Limpar histórico local</button>
         </div>
@@ -2532,6 +2587,37 @@
         <p class="xml-status" id="ordersRefreshStatus">Os pedidos são carregados do banco ao abrir esta aba.</p>
 
         <div class="orders-list" id="ordersList"></div>
+      </div>
+
+      <div class="admin-box" data-admin-panel="customers">
+        <h3>Cadastro de clientes</h3>
+        <p>Cadastre e localize clientes por código, CPF ou nome. O código é gerado automaticamente de 00001 a 99999.</p>
+
+        <form class="reseller-form" id="customerForm">
+          <input type="hidden" id="customerEditId">
+          <input type="text" id="customerCode" placeholder="Código automático" readonly>
+          <input class="span-2" type="text" id="customerName" placeholder="Nome completo *" required>
+          <input type="text" id="customerCpf" placeholder="CPF">
+          <input type="date" id="customerBirth" title="Data de nascimento">
+          <input type="text" id="customerPhone" placeholder="Telefone">
+          <input type="text" id="customerWhatsapp" placeholder="WhatsApp">
+          <input type="email" id="customerEmail" placeholder="E-mail">
+          <input class="span-2" type="text" id="customerAddress" placeholder="Rua / Avenida">
+          <input type="text" id="customerNumber" placeholder="Número">
+          <input type="text" id="customerComplement" placeholder="Complemento">
+          <input type="text" id="customerNeighborhood" placeholder="Bairro">
+          <input type="text" id="customerCity" placeholder="Cidade">
+          <input type="text" id="customerState" placeholder="Estado / UF">
+          <input type="text" id="customerZip" placeholder="CEP">
+          <textarea class="full" id="customerNotes" placeholder="Observações"></textarea>
+          <button class="btn btn-primary full" type="submit" id="saveCustomer">Cadastrar cliente</button>
+        </form>
+
+        <div class="bulk-toolbar" style="margin-top:22px;">
+          <input type="search" id="customerSearch" placeholder="Buscar por código, CPF ou nome">
+        </div>
+        <p class="xml-status" id="customerSearchStatus">Nenhuma cliente cadastrada.</p>
+        <div class="reseller-cards" id="customerList"></div>
       </div>
 
 
@@ -2656,7 +2742,13 @@
           </div>
 
           <input type="text" id="name" placeholder="Nome do produto" required />
-          <input type="text" id="category" placeholder="Categoria" required />
+          <select id="category" required>
+            <option value="">Selecione a categoria</option>
+          </select>
+          <div class="new-category-box" id="newCategoryBox">
+            <input type="text" id="newCategory" placeholder="Nome da nova categoria">
+            <span>A categoria será adicionada ao salvar o produto.</span>
+          </div>
           <input type="text" id="price" placeholder="Valor. Ex: 89,00" required />
           <input type="text" id="code" placeholder="Código/SKU" />
           <input type="number" id="stock" placeholder="Estoque" min="0" value="1" />
@@ -2699,6 +2791,10 @@
     <h3>Sua sacola</h3>
     <p class="client-only-note">Escolha uma ou mais peças e envie tudo junto para a Ornela no WhatsApp.</p>
     <div class="order-code-box" id="currentOrderCode">Pedido: —</div>
+    <label class="cart-customer-code">
+      <span>Código da cliente (opcional)</span>
+      <input type="text" id="cartCustomerCode" inputmode="numeric" maxlength="5" placeholder="Ex: 00001">
+    </label>
     <div id="cartItems"></div>
     <div class="cart-total">
       <span>Total</span>
@@ -2799,6 +2895,9 @@
     const productSourceUrl = document.getElementById("productSourceUrl");
     const importProductFromUrl = document.getElementById("importProductFromUrl");
     const productImportStatus = document.getElementById("productImportStatus");
+    const productCategorySelect = document.getElementById("category");
+    const newCategoryBox = document.getElementById("newCategoryBox");
+    const newCategoryInput = document.getElementById("newCategory");
     const saveProductImage = document.getElementById("saveProductImage");
     const imageSaveStatus = document.getElementById("imageSaveStatus");
     const showHiddenToggle = document.getElementById("showHiddenToggle");
@@ -2822,10 +2921,16 @@
     const orderSearch = document.getElementById("orderSearch");
     const refreshOrdersButton = document.getElementById("refreshOrders");
     const ordersRefreshStatus = document.getElementById("ordersRefreshStatus");
+    const customerForm = document.getElementById("customerForm");
+    const customerSearch = document.getElementById("customerSearch");
+    const customerList = document.getElementById("customerList");
+    const customerSearchStatus = document.getElementById("customerSearchStatus");
+    const cartCustomerCode = document.getElementById("cartCustomerCode");
     let cart = [];
     let currentOrderId = "";
     let orderCounter = 1;
     let ordersHistory = [];
+    let customers = [];
     let resellers = [];
     let xmlImportHistory = [];
     let stateReady = false;
@@ -2896,6 +3001,7 @@
         storeConfig.heroText = "Explore a vitrine, monte sua sacola com calma e envie seu pedido direto para a Ornela pelo WhatsApp.";
       }
       if (Array.isArray(saved.ordersHistory)) ordersHistory = saved.ordersHistory;
+      if (Array.isArray(saved.customers)) customers = saved.customers;
       if (Array.isArray(saved.resellers)) resellers = saved.resellers;
       if (Array.isArray(saved.xmlImportHistory)) xmlImportHistory = saved.xmlImportHistory;
       if (includeLocalCart && Array.isArray(saved.cart)) cart = saved.cart;
@@ -2908,6 +3014,7 @@
         products,
         storeConfig,
         ordersHistory,
+        customers,
         resellers,
         xmlImportHistory,
         cart,
@@ -2918,7 +3025,11 @@
 
     async function loadAppState() {
       try {
-        const response = await fetch(`${API_BASE}/api/state`, { cache: "no-store" });
+        const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+        const response = await fetch(`${API_BASE}/api/state`, {
+          cache: "no-store",
+          headers: token ? { "Authorization": `Bearer ${token}` } : {}
+        });
         if (response.ok) {
           applyLoadedState(await response.json(), false);
           return;
@@ -3608,6 +3719,32 @@
       return ["Todos", ...new Set(products.map(product => product.category))];
     }
 
+    function refreshProductCategorySelect(preferredCategory = "") {
+      if (!productCategorySelect) return;
+      const current = preferredCategory || productCategorySelect.value;
+      const standard = ["Anéis", "Brincos", "Colares", "Pulseiras", "Tornozeleiras", "Conjuntos", "Semijoias"];
+      const categories = [...new Set([
+        ...standard,
+        ...products.map(product => String(product.category || "").trim()).filter(Boolean),
+        ...(current && current !== "__new__" ? [current] : [])
+      ])];
+
+      productCategorySelect.innerHTML = `
+        <option value="">Selecione a categoria</option>
+        ${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}
+        <option value="__new__">＋ Adicionar nova categoria</option>
+      `;
+      productCategorySelect.value = current || "";
+      updateNewCategoryVisibility(false);
+    }
+
+    function updateNewCategoryVisibility(focusField = true) {
+      const creating = productCategorySelect?.value === "__new__";
+      newCategoryBox?.classList.toggle("open", creating);
+      if (newCategoryInput) newCategoryInput.required = creating;
+      if (creating && focusField) newCategoryInput?.focus();
+    }
+
     function renderCategories() {
       categoryButtons.innerHTML = "";
 
@@ -3622,6 +3759,8 @@
         };
         categoryButtons.appendChild(button);
       });
+
+      refreshProductCategorySelect();
     }
 
     function renderProducts(refreshAdminList = true) {
@@ -4157,6 +4296,87 @@
       if (element) element.textContent = value;
     }
 
+    function normalizeCustomerCode(value) {
+      const digits = onlyDigits(value).slice(0, 5);
+      return digits ? digits.padStart(5, "0") : "";
+    }
+
+    function nextCustomerCode() {
+      const greatest = customers.reduce((max, customer) => Math.max(max, Number(customer.code) || 0), 0);
+      if (greatest >= 99999) throw new Error("O limite de 99.999 clientes foi atingido.");
+      return String(greatest + 1).padStart(5, "0");
+    }
+
+    function renderCustomers() {
+      if (!customerList) return;
+      const customerCodeField = document.getElementById("customerCode");
+      if (customerCodeField && !document.getElementById("customerEditId").value) {
+        try { customerCodeField.value = nextCustomerCode(); } catch { customerCodeField.value = "Limite atingido"; }
+      }
+      const search = normalizeCode(customerSearch?.value || "");
+      const filtered = customers.filter(customer => normalizeCode([
+        customer.code, customer.cpf, customer.name
+      ].join(" ")).includes(search));
+
+      customerSearchStatus.textContent = search
+        ? `${filtered.length} de ${customers.length} cliente(s) encontrada(s).`
+        : `${customers.length} cliente(s) cadastrada(s).`;
+
+      if (!filtered.length) {
+        customerList.innerHTML = '<p class="client-only-note">Nenhuma cliente encontrada.</p>';
+        return;
+      }
+
+      customerList.innerHTML = filtered.map(customer => `
+        <div class="reseller-card">
+          <div class="reseller-card-head">
+            <div>
+              <strong>${escapeHtml(customer.name)}</strong>
+              <small>Código: ${escapeHtml(customer.code)} • CPF: ${escapeHtml(customer.cpf || "Não informado")}</small>
+            </div>
+            <span>${escapeHtml(customer.whatsapp || customer.phone || "Sem telefone")}</span>
+          </div>
+          <p>${escapeHtml([customer.email, customer.city, customer.state].filter(Boolean).join(" • ") || "Sem informações adicionais")}</p>
+          <div class="reseller-card-actions">
+            <button type="button" onclick="editCustomer('${customer.id}')">Editar</button>
+            <button type="button" class="danger" onclick="removeCustomer('${customer.id}')">Remover</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function editCustomer(id) {
+      const customer = customers.find(item => item.id === id);
+      if (!customer) return;
+      document.getElementById("customerEditId").value = customer.id;
+      document.getElementById("customerCode").value = customer.code;
+      ["Name","Cpf","Birth","Phone","Whatsapp","Email","Address","Number","Complement","Neighborhood","City","State","Zip","Notes"].forEach(field => {
+        document.getElementById(`customer${field}`).value = customer[field.charAt(0).toLowerCase() + field.slice(1)] || "";
+      });
+      document.getElementById("saveCustomer").textContent = "Salvar alterações";
+      customerForm.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    async function removeCustomer(id) {
+      const customer = customers.find(item => item.id === id);
+      if (!customer || !confirm(`Remover a cliente ${customer.name}?`)) return;
+      customers = customers.filter(item => item.id !== id);
+      renderCustomers();
+      updateDashboard();
+      try { await saveAppStateNow(); } catch (error) { alert(error.message); }
+    }
+
+    function updateOrderCustomerCode(orderCode, value) {
+      const order = ordersHistory.find(item => item.code === orderCode);
+      if (!order) return;
+      const code = normalizeCustomerCode(value);
+      const customer = customers.find(item => item.code === code);
+      order.customerCode = code;
+      order.customerName = customer?.name || "";
+      order.customerCpf = customer?.cpf || "";
+      renderOrdersHistory();
+    }
+
     function updateDashboard() {
       const total = products.length;
       const visible = products.filter(product => !product.hidden && Number(product.stock ?? 1) > 0).length;
@@ -4169,6 +4389,7 @@
       setTextById("dashWithoutStock", withoutStock);
       setTextById("dashOrders", ordersHistory.length);
       setTextById("dashResellers", resellers.length);
+      setTextById("dashCustomers", customers.length);
     }
 
     function switchAdminTab(tabName) {
@@ -4184,6 +4405,10 @@
 
       if (tabName === "orders") {
         refreshOrdersHistory();
+      }
+
+      if (tabName === "customers") {
+        renderCustomers();
       }
     }
 
@@ -4278,10 +4503,12 @@
         });
 
       const totalValue = items.reduce((sum, item) => sum + (brMoneyToNumber(item.price) * item.qty), 0);
+      const customerCode = normalizeCustomerCode(cartCustomerCode?.value || "");
 
       return {
         code,
         date: new Date().toLocaleString("pt-BR"),
+        customerCode,
         items,
         subtotal: numberToBR(totalValue),
         discountPercent: 0,
@@ -4353,7 +4580,8 @@
     function renderOrdersHistory() {
       const search = String(orderSearch?.value || "").toLowerCase().trim();
       ordersHistory.forEach(recalcOrderTotal);
-      const filtered = ordersHistory.filter(order => order.code.toLowerCase().includes(search));
+      const filtered = ordersHistory.filter(order => [order.code, order.customerCode, order.customerName]
+        .join(" ").toLowerCase().includes(search));
 
       if (!ordersList) return;
       updateDashboard();
@@ -4365,10 +4593,27 @@
 
       ordersList.innerHTML = filtered.map(order => {
         const locked = (order.status || "Aberto") === "Finalizado";
+        const linkedCustomer = customers.find(customer => customer.code === normalizeCustomerCode(order.customerCode));
+        if (linkedCustomer) {
+          order.customerCode = linkedCustomer.code;
+          order.customerName = linkedCustomer.name;
+          order.customerCpf = linkedCustomer.cpf || "";
+        }
         return `
         <div class="order-card" data-order-code="${escapeHtml(order.code)}">
           <strong>Pedido ${order.code} <span class="order-status">${order.status || "Aberto"}</span></strong>
           <small>${order.date} • Edite os itens e clique em Salvar alterações.</small>
+          <div class="order-customer-link">
+            <label>
+              <span>Código da cliente</span>
+              <input type="text" inputmode="numeric" maxlength="5" value="${escapeHtml(order.customerCode || "")}"
+                placeholder="00001" onchange="updateOrderCustomerCode('${order.code}', this.value)" ${locked ? "disabled" : ""}>
+            </label>
+            <div>
+              <strong>${escapeHtml(order.customerName || "Cliente não vinculada")}</strong>
+              <small>${order.customerCpf ? `CPF: ${escapeHtml(order.customerCpf)}` : "Informe o código para vincular o cadastro."}</small>
+            </div>
+          </div>
           <div class="order-items-editor">
             ${order.items.map((item, itemIndex) => `
               <div class="order-item-editor">
@@ -4419,7 +4664,8 @@
 
       const text =
         `Pedido ${order.code}\n` +
-        `${order.date}\n\n` +
+        `${order.date}\n` +
+        `${order.customerCode ? `Cliente: ${order.customerName || "Não localizada"} | Código: ${order.customerCode}\n` : ""}\n` +
         order.items.map(item => `${item.qty}x ${item.name} | Código: ${item.code} | R$ ${item.price}`).join("\n") +
         `\n\nSubtotal: R$ ${order.subtotal}` +
         `\nDesconto: ${numberToBR(order.discountPercent)}% (- R$ ${order.discountValue})` +
@@ -4734,6 +4980,7 @@
         `----------------------%0A` +
         `✨ ORNELA SEMIJOIAS%0A%0A` +
         `Pedido: ${snapshot.code}%0A%0A` +
+        `${snapshot.customerCode ? `Código da cliente: ${snapshot.customerCode}%0A%0A` : ""}` +
         `Cliente escolheu:%0A%0A` +
         `${itemsText}%0A%0A` +
         `----------------------%0A` +
@@ -4747,6 +4994,7 @@
     function clearCartAfterSend() {
       cart = [];
       currentOrderId = "";
+      if (cartCustomerCode) cartCustomerCode.value = "";
       cartPanel.classList.remove("open");
       renderCart();
     }
@@ -5127,7 +5375,7 @@
         if (data.name) document.getElementById("name").value = data.name;
         if (data.code) document.getElementById("code").value = data.code;
         if (data.description) document.getElementById("description").value = data.description;
-        document.getElementById("category").value = data.category || suggestCategory(data.name || "");
+        refreshProductCategorySelect(data.category || suggestCategory(data.name || ""));
 
         if (data.price) {
           const cleaned = String(data.price).replace(/[^0-9,.-]/g, "");
@@ -5210,6 +5458,8 @@
       imageSaveStatus.classList.add("saved");
     });
 
+    productCategorySelect.addEventListener("change", () => updateNewCategoryVisibility(true));
+
     form.addEventListener("submit", async event => {
       event.preventDefault();
 
@@ -5221,10 +5471,19 @@
       const productImages = importedProductImages.length
         ? importedProductImages.slice(0, 3)
         : (selectedImage ? [selectedImage] : []);
+      const selectedProductCategory = productCategorySelect.value === "__new__"
+        ? newCategoryInput.value.trim()
+        : productCategorySelect.value.trim();
+
+      if (!selectedProductCategory) {
+        alert("Selecione uma categoria ou informe o nome da nova categoria.");
+        productCategorySelect.focus();
+        return;
+      }
 
       const newProduct = {
         name: document.getElementById("name").value.trim(),
-        category: document.getElementById("category").value.trim(),
+        category: selectedProductCategory,
         price: document.getElementById("price").value.trim(),
         code: document.getElementById("code").value.trim(),
         description: document.getElementById("description").value.trim(),
@@ -5250,6 +5509,7 @@
       }
 
       form.reset();
+      refreshProductCategorySelect();
       imageFile.value = "";
       imageUrl.value = "";
       selectedImage = "";
@@ -5318,6 +5578,8 @@
         const data = await response.json();
         sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
         sessionStorage.setItem(ADMIN_SESSION_KEY, "ok");
+        await loadAppState();
+        renderCustomers();
         openAdminPanel();
       } catch (error) {
         adminLoginError.textContent = "Senha incorreta. Tente novamente.";
@@ -5353,6 +5615,10 @@
 
     document.getElementById("cancelCart").addEventListener("click", () => {
       cartPanel.classList.remove("open");
+    });
+
+    cartCustomerCode.addEventListener("input", () => {
+      cartCustomerCode.value = onlyDigits(cartCustomerCode.value).slice(0, 5);
     });
 
     cartWhatsapp.addEventListener("click", async () => {
@@ -5685,6 +5951,46 @@
       button.addEventListener("click", () => switchResellerTab(button.dataset.resellerTab));
     });
 
+    customerForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const editId = document.getElementById("customerEditId").value;
+      const existing = customers.find(item => item.id === editId);
+      const cpf = document.getElementById("customerCpf").value.trim();
+      const duplicateCpf = cpf && customers.some(item => item.id !== editId && onlyDigits(item.cpf) === onlyDigits(cpf));
+      if (duplicateCpf) {
+        alert("Já existe uma cliente cadastrada com este CPF.");
+        return;
+      }
+
+      let code;
+      try { code = existing?.code || nextCustomerCode(); }
+      catch (error) { alert(error.message); return; }
+
+      const data = { id: existing?.id || makeId("cli"), code, createdAt: existing?.createdAt || new Date().toLocaleString("pt-BR") };
+      ["Name","Cpf","Birth","Phone","Whatsapp","Email","Address","Number","Complement","Neighborhood","City","State","Zip","Notes"].forEach(field => {
+        data[field.charAt(0).toLowerCase() + field.slice(1)] = document.getElementById(`customer${field}`).value.trim();
+      });
+
+      if (existing) Object.assign(existing, data);
+      else customers.unshift(data);
+
+      customerForm.reset();
+      document.getElementById("customerEditId").value = "";
+      document.getElementById("customerCode").value = "";
+      document.getElementById("saveCustomer").textContent = "Cadastrar cliente";
+      renderCustomers();
+      updateDashboard();
+
+      try {
+        await saveAppStateNow();
+        alert(existing ? "Cadastro atualizado." : `Cliente cadastrada com o código ${code}.`);
+      } catch (error) {
+        alert(error.message || "Não foi possível salvar a cliente no banco.");
+      }
+    });
+
+    customerSearch.addEventListener("input", renderCustomers);
+
     resellerForm.addEventListener("submit", event => {
       event.preventDefault();
 
@@ -5859,6 +6165,7 @@
       renderProducts();
       renderCart();
       renderResellers();
+      renderCustomers();
 
       const pendingImages = products.reduce((count, product) =>
         count + getProductImages(product).filter(image => image.startsWith("data:image/")).length, 0);
