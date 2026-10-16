@@ -3373,13 +3373,121 @@
       return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    function ensureProductIds() {
-      products.forEach((product, index) => {
-        if (!product._ornelaId) {
-          product._ornelaId = product.code
-            ? `sku-${normalizeCode(product.code)}`
-            : `produto-${index}-${Date.now()}`;
+    function productAlphabeticalLabel(product) {
+      return String(product?.description || product?.name || product?.code || "").trim();
+    }
+
+    function productSourceCode(product) {
+      if (Object.prototype.hasOwnProperty.call(product, "sourceCode")) {
+        return String(product.sourceCode || "").trim();
+      }
+      return String(product.code || "").trim();
+    }
+
+    function ensureUniqueCatalogCodes() {
+      const groups = new Map();
+      let changed = false;
+
+      products.forEach(product => {
+        if (!Object.prototype.hasOwnProperty.call(product, "sourceCode")) {
+          product.sourceCode = String(product.code || "").trim();
+          product.xmlName = product.xmlName || product.name || "";
+          changed = true;
         }
+
+        const sourceCode = productSourceCode(product);
+        const groupKey = normalizeCode(sourceCode) || "__SEM_CODIGO__";
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey).push(product);
+      });
+
+      groups.forEach(group => {
+        if (group.length < 2) return;
+
+        const assigned = group.filter(product => Number.isInteger(Number(product.catalogSequence)) && Number(product.catalogSequence) > 0);
+        const pending = group.filter(product => !assigned.includes(product));
+        let nextSequence = assigned.reduce((max, product) => Math.max(max, Number(product.catalogSequence)), 0) + 1;
+
+        pending.sort((a, b) => productAlphabeticalLabel(a).localeCompare(
+          productAlphabeticalLabel(b),
+          "pt-BR",
+          { sensitivity: "base", numeric: true }
+        ));
+
+        pending.forEach(product => {
+          product.catalogSequence = nextSequence++;
+          changed = true;
+        });
+
+        group.forEach(product => {
+          const baseCode = productSourceCode(product) || "ITEM";
+          const catalogCode = `${baseCode}-${String(Number(product.catalogSequence)).padStart(4, "0")}`;
+          if (product.code !== catalogCode) {
+            product.code = catalogCode;
+            changed = true;
+          }
+        });
+      });
+
+      return changed;
+    }
+
+    function legacyCodeFromProductKey(key) {
+      return String(key || "").startsWith("sku-") ? String(key).slice(4) : "";
+    }
+
+    function chooseLegacyProductForInventory(item, candidates) {
+      if (!candidates.length) return null;
+      if (candidates.length === 1) return candidates[0].product;
+
+      const legacyCode = normalizeCode(legacyCodeFromProductKey(item.productKey));
+      const codeMatches = legacyCode
+        ? candidates.filter(candidate => normalizeCode(candidate.oldCode) === legacyCode)
+        : [];
+      const pool = codeMatches.length ? codeMatches : candidates;
+      const inventoryLabels = [item.description, item.name].map(normalizeCode).filter(Boolean);
+      const labelMatch = pool.find(candidate => {
+        const productLabels = [candidate.oldDescription, candidate.oldName].map(normalizeCode).filter(Boolean);
+        return inventoryLabels.some(label => productLabels.includes(label));
+      });
+
+      return (labelMatch || pool.sort((a, b) => productAlphabeticalLabel(a.product).localeCompare(
+        productAlphabeticalLabel(b.product), "pt-BR", { sensitivity: "base", numeric: true }
+      ))[0]).product;
+    }
+
+    function ensureProductIds() {
+      const snapshots = products.map(product => ({
+        product,
+        oldId: product._ornelaId || "",
+        oldCode: product.code || "",
+        oldName: product.name || "",
+        oldDescription: product.description || ""
+      }));
+      const snapshotsByOldId = new Map();
+      snapshots.forEach(snapshot => {
+        if (!snapshotsByOldId.has(snapshot.oldId)) snapshotsByOldId.set(snapshot.oldId, []);
+        snapshotsByOldId.get(snapshot.oldId).push(snapshot);
+      });
+
+      ensureUniqueCatalogCodes();
+
+      const usedIds = new Set();
+      products.forEach(product => {
+        let id = String(product._ornelaId || "");
+        if (!id || usedIds.has(id)) {
+          do { id = makeId("produto"); } while (usedIds.has(id));
+          product._ornelaId = id;
+        }
+        usedIds.add(product._ornelaId);
+      });
+
+      resellers.forEach(reseller => {
+        (reseller.inventory || []).forEach(item => {
+          const candidates = snapshotsByOldId.get(item.productKey) || [];
+          const product = chooseLegacyProductForInventory(item, candidates);
+          if (product) item.productKey = product._ornelaId;
+        });
       });
     }
 
@@ -4548,6 +4656,22 @@
       return products.find(product => normalizeCode(product.code) === normalized) || null;
     }
 
+    function findProductForXmlImport(item) {
+      const sourceCode = normalizeCode(item?.code);
+      if (!sourceCode) return null;
+
+      const candidates = products.filter(product =>
+        normalizeCode(productSourceCode(product)) === sourceCode
+      );
+      if (candidates.length === 1) return candidates[0];
+      if (!candidates.length) return null;
+
+      const importedName = normalizeCode(item?.name);
+      return candidates.find(product =>
+        [product.xmlName, product.name].map(normalizeCode).includes(importedName)
+      ) || null;
+    }
+
     function setTextById(id, value) {
       const element = document.getElementById(id);
       if (element) element.textContent = value;
@@ -5536,27 +5660,31 @@
 
         const category = item.category || suggestCategory(item.name);
         const qtyToAdd = Number(item.qty || item.stock || 1) || 1;
-        const existingProduct = findProductByCode(item.code);
+        const existingProduct = findProductForXmlImport(item);
 
         if (existingProduct) {
           existingProduct.stock = Number(existingProduct.stock || 0) + qtyToAdd;
           existingProduct.price = numberToBR(brMoneyToNumber(item.price));
           existingProduct.category = existingProduct.category || category;
           existingProduct.description = existingProduct.description || item.catalogDescription || item.name;
+          existingProduct.xmlName = existingProduct.xmlName || item.name;
           existingProduct.hidden = false;
           updatedCount++;
         } else {
           products.unshift({
-          name: item.name,
-          category,
-          price: numberToBR(brMoneyToNumber(item.price)),
-          code: item.code,
-          description: item.catalogDescription || item.name,
-          image: item.image || "",
-          images: item.image ? [item.image] : [],
-          tag: item.tag || "",
-          hidden: false,
-          stock: Number(item.qty || 1)
+            _ornelaId: makeId("produto"),
+            name: item.name,
+            category,
+            price: numberToBR(brMoneyToNumber(item.price)),
+            code: item.code,
+            sourceCode: item.code,
+            xmlName: item.name,
+            description: item.catalogDescription || item.name,
+            image: item.image || "",
+            images: item.image ? [item.image] : [],
+            tag: item.tag || "",
+            hidden: false,
+            stock: Number(item.qty || 1)
           });
           newCount++;
         }
@@ -5564,6 +5692,7 @@
         xmlImportHistory.push(importKey);
       });
 
+      ensureProductIds();
       importedXmlItems = [];
       xmlFile.value = "";
       markupSelect.value = "4";
@@ -5968,13 +6097,15 @@
       const nextImages = editedImage
         ? [editedImage, ...currentImages.filter(image => image !== editedImage)].slice(0, 3)
         : currentImages;
+      const editedCode = document.getElementById("editCode").value.trim();
+      const codeChanged = editedCode !== String(products[index].code || "").trim();
 
-      products[index] = {
+      const updatedProduct = {
         ...products[index],
         name: document.getElementById("editName").value.trim(),
         category: document.getElementById("editCategory").value.trim(),
         price: document.getElementById("editPrice").value.trim(),
-        code: document.getElementById("editCode").value.trim(),
+        code: editedCode,
         stock: Number(document.getElementById("editStock").value || 0),
         image: nextImages[0] || "",
         images: nextImages,
@@ -5982,6 +6113,12 @@
         tag: document.getElementById("editTag").value,
         hidden: document.getElementById("editHidden").value === "true" || Number(document.getElementById("editStock").value || 0) <= 0
       };
+      if (codeChanged) {
+        updatedProduct.sourceCode = editedCode;
+        delete updatedProduct.catalogSequence;
+      }
+      products[index] = updatedProduct;
+      ensureProductIds();
 
       document.getElementById("bulkCategory").value = "";
       document.getElementById("bulkPercent").value = "";
@@ -6041,6 +6178,12 @@
         if (products[index][field] <= 0) products[index].hidden = true;
       } else {
         products[index][field] = event.target.value;
+      }
+
+      if (field === "code") {
+        products[index].sourceCode = event.target.value.trim();
+        delete products[index].catalogSequence;
+        ensureProductIds();
       }
 
       renderCategories();
@@ -6345,8 +6488,15 @@
       }
 
       const availableProducts = products.filter(product => Number(product.stock || 0) > 0);
-      const product = availableProducts.find(item => normalizeCode(item.code || "") === searchedCode)
-        || availableProducts.find(item => normalizeCode(item.code || "").includes(searchedCode));
+      const exactProduct = availableProducts.find(item => normalizeCode(item.code || "") === searchedCode);
+      const partialProducts = availableProducts.filter(item => normalizeCode(item.code || "").includes(searchedCode));
+      const product = exactProduct || (partialProducts.length === 1 ? partialProducts[0] : null);
+
+      if (!exactProduct && partialProducts.length > 1) {
+        transferProduct.value = "";
+        renderTransferProductPreview(null, `${partialProducts.length} itens encontrados. Selecione na lista usando o código atual completo do catálogo.`);
+        return;
+      }
 
       if (!product) {
         transferProduct.value = "";
