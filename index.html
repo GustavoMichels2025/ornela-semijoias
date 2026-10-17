@@ -876,10 +876,10 @@
 
     .bulk-row {
       display: grid;
-      grid-template-columns: 34px 1.1fr 0.65fr 0.7fr repeat(3, minmax(85px, .5fr)) 0.5fr 0.7fr 0.7fr 300px;
-      gap: 10px;
+      grid-template-columns: 24px minmax(190px, 2fr) minmax(100px, 1fr) minmax(110px, 1fr) repeat(3, minmax(78px, .65fr)) 64px;
+      gap: 7px;
       align-items: center;
-      padding: 12px;
+      padding: 9px;
       border: 1px solid rgba(201, 162, 77, 0.16);
       border-radius: 16px;
       background: #fbf7f2;
@@ -890,12 +890,27 @@
       width: 100%;
       border: 1px solid rgba(201, 162, 77, 0.28);
       border-radius: 10px;
-      padding: 9px;
+      padding: 7px 8px;
+      font-size: 12px;
+      min-height: 32px;
       background: #fff;
       outline: none;
     }
 
     .bulk-price-field { display: grid; gap: 5px; min-width: 0; font-size: 10px; color: var(--muted); }
+    .bulk-row > select { grid-column: span 2; }
+    .bulk-row > .product-image-manager { grid-column: span 3; }
+    .product-share-field { grid-column: span 3; display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .product-share-field input { min-width: 0; font-size: 11px; }
+    .product-share-field button { border: 1px solid var(--gold); border-radius: 8px; background: #fff; padding: 7px 9px; cursor: pointer; font-size: 11px; white-space: nowrap; }
+    @media (max-width: 1000px) and (min-width: 761px) {
+      .bulk-row { grid-template-columns: 24px minmax(170px, 2fr) repeat(3, minmax(85px, 1fr)); }
+      .product-share-field { grid-column: span 2; }
+    }
+    @media (max-width: 760px) {
+      .bulk-row > select, .bulk-row > .product-image-manager, .bulk-row > .product-share-field { grid-column: 1 / -1; }
+      .bulk-row input, .bulk-row select { font-size: 16px; }
+    }
     .price-before { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
 
     .product-image-manager {
@@ -3596,6 +3611,13 @@
           product._ornelaId = id;
         }
         usedIds.add(product._ornelaId);
+        if (!product.shareCode) {
+          let hash = 14695981039346656037n;
+          for (const char of product._ornelaId) {
+            hash = BigInt.asUintN(64, (hash ^ BigInt(char.charCodeAt(0))) * 1099511628211n);
+          }
+          product.shareCode = hash.toString(36);
+        }
       });
 
       resellers.forEach(reseller => {
@@ -4300,6 +4322,7 @@
       filtered.forEach(product => {
         const card = document.createElement("article");
         card.className = `product ${product.hidden ? "hidden-product" : ""}`;
+        card.id = `item-${product._ornelaId}`;
         const productImages = getProductImages(product).filter(hasUsableProductImage);
         const hasCarousel = productImages.length > 1;
 
@@ -4441,6 +4464,25 @@
       });
     }
 
+    function productShareLink(product) {
+      const url = new URL(window.location.pathname, window.location.origin);
+      url.searchParams.set("p", product.shareCode || product._ornelaId);
+      return url.href;
+    }
+
+    async function copyProductLink(index, button) {
+      const input = button.parentElement.querySelector("input");
+      try {
+        await navigator.clipboard.writeText(productShareLink(products[index]));
+        button.textContent = "Copiado!";
+        setTimeout(() => { button.textContent = "Copiar link"; }, 1800);
+      } catch {
+        input.focus();
+        input.select();
+        button.textContent = "Selecione e copie";
+      }
+    }
+
     function renderBulkList() {
       if (!bulkList) return;
 
@@ -4521,6 +4563,10 @@
             ${productImages.length > 0 ? `
               <button class="product-images-save" type="button" onclick="saveProductGallery(${index}, this)">Salvar fotos</button>
             ` : ""}
+          </div>
+          <div class="product-share-field">
+            <input type="text" readonly value="${escapeHtml(productShareLink(product))}" aria-label="Link direto do produto" title="Link direto do produto">
+            <button type="button" onclick="copyProductLink(${index}, this)">Copiar link</button>
           </div>
         `;
 
@@ -6867,6 +6913,21 @@
           openAdminPanel();
         } else {
           openAdminLogin();
+        }
+      }
+      const sharedCode = new URLSearchParams(window.location.search).get("p");
+      if (sharedCode) {
+        const product = products.find(item => item.shareCode === sharedCode || item._ornelaId === sharedCode);
+        if (product && !product.hidden && Number(product.stock || 0) > 0) {
+          searchInput.value = product.code || product.name;
+          selectedCategory = "Todos";
+          renderCategories();
+          renderProducts();
+          document.getElementById(`item-${product._ornelaId}`)?.scrollIntoView({ block: "center" });
+        } else {
+          emptyMessage.textContent = "Esta peça está indisponível no momento. Explore outras opções da vitrine.";
+          emptyMessage.style.display = "block";
+          document.getElementById("catalogo")?.scrollIntoView();
         }
       }
     })();
