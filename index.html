@@ -2654,6 +2654,48 @@
       letter-spacing: .2px;
       overflow-wrap: anywhere;
     }
+    #ordersList {
+      --order-columns: 110px 150px minmax(175px, 1fr) 100px 60px 95px 80px 100px 85px;
+      display: block;
+      max-height: 75vh;
+      overflow: auto;
+      border: 1px solid #ded8ce;
+      border-radius: 8px;
+      background: #fff;
+    }
+    #ordersList .orders-sheet-header, #ordersList .order-sheet-summary {
+      display: grid;
+      grid-template-columns: var(--order-columns);
+      align-items: center;
+      min-width: 1060px;
+      font: 11px "Montserrat", Arial, sans-serif;
+    }
+    #ordersList .orders-sheet-header { position: sticky; top: 0; z-index: 5; background: #eee7dc; font-weight: 700; }
+    #ordersList .orders-sheet-header > span, #ordersList .order-sheet-summary > span {
+      padding: 9px 7px;
+      min-width: 0;
+      border-right: 1px solid #e5e0d8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #ordersList .order-card { min-width: 1060px; padding: 0; margin: 0; border: 0; border-bottom: 1px solid #e5e0d8; border-radius: 0; box-shadow: none; background: #fff; }
+    #ordersList .order-card:nth-child(odd) { background: #faf8f4; }
+    #ordersList .order-sheet-summary { cursor: pointer; list-style: none; }
+    #ordersList .order-sheet-summary::-webkit-details-marker { display: none; }
+    #ordersList .order-sheet-summary:hover, #ordersList details[open] > summary { background: #f4ecdf; }
+    #ordersList .order-sheet-summary:focus-visible { outline: 2px solid var(--gold-dark); outline-offset: -2px; }
+    #ordersList .order-sheet-details { padding: 12px; border-top: 1px solid #e5e0d8; }
+    #ordersList .order-card strong, #ordersList .order-summary-value b { font-size: 12px; }
+    #ordersList .order-card small { font-size: 10px; }
+    #ordersList .order-items-editor { gap: 0; }
+    #ordersList .order-item-editor { grid-template-columns: minmax(250px, 1fr) 90px 120px 80px; gap: 8px; padding: 5px 8px; border-radius: 0; border-bottom: 1px solid #e5e0d8; }
+    #ordersList .order-item-editor input, #ordersList .order-discount-field input, #ordersList .order-customer-link input { padding: 5px 7px; min-height: 29px; font-size: 11px; border-radius: 4px; }
+    #ordersList .order-edit-summary { grid-template-columns: repeat(4, 1fr); padding: 8px; border-radius: 4px; }
+    #ordersList .order-customer-link { margin: 8px 0; padding: 8px; border-radius: 4px; }
+    #ordersList .order-actions { margin-top: 10px; }
+    #ordersList .order-actions button, #ordersList .order-item-editor button { padding: 6px 9px; font-size: 11px; border-radius: 5px; }
+    #ordersList .order-detail-label { color: var(--gold-dark); font-weight: 600; }
   </style>
 </head>
 
@@ -5335,6 +5377,7 @@
     }
 
     function renderOrdersHistory() {
+      const expandedOrders = new Set(Array.from(ordersList?.querySelectorAll("details[open][data-order-code]") || []).map(element => element.dataset.orderCode));
       const search = String(orderSearch?.value || "").toLowerCase().trim();
       ordersHistory.forEach(recalcOrderTotal);
       const filtered = ordersHistory.filter(order => [order.code, order.customerCode, order.customerName]
@@ -5348,7 +5391,7 @@
         return;
       }
 
-      ordersList.innerHTML = filtered.map(order => {
+      ordersList.innerHTML = `<div class="orders-sheet-header">${["Pedido", "Data", "Cliente", "Status", "Peças", "Subtotal R$", "Desc. %", "Total R$", "Ações"].map(label => `<span>${label}</span>`).join("")}</div>` + filtered.map(order => {
         const locked = (order.status || "Aberto") === "Finalizado";
         const linkedCustomer = customers.find(customer => customer.code === normalizeCustomerCode(order.customerCode));
         if (linkedCustomer) {
@@ -5357,9 +5400,20 @@
           order.customerCpf = linkedCustomer.cpf || "";
         }
         return `
-        <div class="order-card" data-order-code="${escapeHtml(order.code)}">
-          <strong>Pedido ${order.code} <span class="order-status">${order.status || "Aberto"}</span></strong>
-          <small>${order.date} • Edite os itens e clique em Salvar alterações.</small>
+        <details class="order-card" data-order-code="${escapeHtml(order.code)}" ${expandedOrders.has(order.code) ? "open" : ""}>
+          <summary class="order-sheet-summary" aria-label="Abrir detalhes do pedido ${escapeHtml(order.code)}">
+            <span>${escapeHtml(order.code)}</span>
+            <span>${escapeHtml(order.date || "")}</span>
+            <span title="${escapeHtml(order.customerName || "Cliente não vinculada")}">${escapeHtml([order.customerCode, order.customerName].filter(Boolean).join(" • ") || "Cliente não vinculada")}</span>
+            <span>${escapeHtml(order.status || "Aberto")}</span>
+            <span>${order.items.reduce((sum, item) => sum + Number(item.qty || 0), 0)}</span>
+            <span>${escapeHtml(order.subtotal)}</span>
+            <span>${numberToBR(order.discountPercent || 0)}%</span>
+            <span>${escapeHtml(order.total)}</span>
+            <span class="order-detail-label">Detalhes ↕</span>
+          </summary>
+          <div class="order-sheet-details">
+          <small>Edite os itens e clique em Salvar alterações.</small>
           <div class="order-customer-link">
             <label>
               <span>Código da cliente</span>
@@ -5412,7 +5466,8 @@
             <button type="button" onclick="cancelOrder('${order.code}')">Cancelar pedido</button>
             ${locked ? `<button type="button" onclick="deleteFinalizedOrder('${order.code}', this)">Excluir pedido finalizado</button>` : ""}
           </div>
-        </div>
+          </div>
+        </details>
       `}).join("");
     }
 
