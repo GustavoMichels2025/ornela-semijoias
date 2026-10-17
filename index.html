@@ -2740,6 +2740,12 @@
     #catalogEnd button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border: 1px solid #d9cbb6; border-radius: 999px; background: #fffdf9; color: var(--ink); font: 500 12px "Montserrat",Arial,sans-serif; cursor: pointer; }
     #catalogEnd button:hover { background: #f2eadc; }
     #catalogEnd[hidden], body.admin-mode #catalogEnd { display: none; }
+    #catalogPagination { max-width:1180px; margin:18px auto; padding:0 18px; display:flex; justify-content:center; align-items:center; gap:14px; flex-wrap:wrap; }
+    #catalogPagination[hidden] { display:none; }
+    #catalogPagination button { border:1px solid #d9cbb6; border-radius:8px; padding:10px 15px; background:#fffdf9; font:500 12px "Montserrat",Arial,sans-serif; cursor:pointer; }
+    #catalogPagination button:disabled { opacity:.4; cursor:default; }
+    #catalogPagination span { font-size:12px; color:var(--muted); }
+    body.admin-mode #catalogPagination { display:none; }
   </style>
 </head>
 
@@ -2802,6 +2808,7 @@
     <nav id="sharedProductNav" hidden><a href="/">← Ver todas as peças</a></nav>
     <section class="grid" id="productGrid"></section>
     <p class="empty" id="emptyMessage">Vitrine em preparação. Em breve novas peças Ornela estarão disponíveis.</p>
+    <nav id="catalogPagination" aria-label="Páginas da vitrine" hidden><button id="catalogPrevious" type="button">← Anterior</button><span id="catalogPageStatus" aria-live="polite"></span><button id="catalogNext" type="button">Próximas peças →</button></nav>
     <div id="catalogEnd" hidden><p>Você chegou ao final das peças disponíveis.</p><button id="backToCatalogTop" type="button"><span aria-hidden="true">↑</span> Voltar ao topo</button></div>
 
     <section class="admin" id="adminArea">
@@ -4574,12 +4581,38 @@
       return activePromotion(product) ? numberToBR(brMoneyToNumber(product.promotionPrice)) : product.price;
     }
 
+    let catalogPage = 1;
+    let catalogFilterKey = '';
+    let catalogPhotoObserver = null;
+    const CATALOG_PAGE_SIZE = 24;
+
+    function observeCatalogPhotos() {
+      if (catalogPhotoObserver) catalogPhotoObserver.disconnect();
+      const photos = grid.querySelectorAll('img[data-catalog-src]');
+      if (!('IntersectionObserver' in window)) {
+        photos.forEach(img => { img.src = img.dataset.catalogSrc; });
+        return;
+      }
+      catalogPhotoObserver = new IntersectionObserver(entries => {
+        entries.forEach(({ target, isIntersecting }) => {
+          if (isIntersecting) {
+            if (!target.hasAttribute('src')) target.src = target.dataset.catalogSrc;
+          } else if (target.hasAttribute('src')) {
+            target.removeAttribute('src');
+          }
+        });
+      }, { rootMargin: '350px 0px' });
+      photos.forEach(img => catalogPhotoObserver.observe(img));
+    }
+
     function renderProducts(refreshAdminList = true) {
       const directCode = new URLSearchParams(window.location.search).get("p");
       document.body.classList.toggle("product-detail-mode", Boolean(directCode));
       document.getElementById("sharedProductNav").hidden = !directCode;
       const searchTerms = normalizeCatalogSearch(searchInput.value).split(/\s+/).filter(Boolean);
       const showHidden = showHiddenToggle.checked;
+      const filterKey = JSON.stringify([directCode, searchInput.value, selectedCategory, showHidden]);
+      if (filterKey !== catalogFilterKey) { catalogPage = 1; catalogFilterKey = filterKey; }
 
       const filtered = products
         .map((product, realIndex) => ({ ...product, realIndex }))
@@ -4599,9 +4632,13 @@
           return matchVisibility && matchCategory && matchSearch;
         });
 
+      const pageCount = Math.max(1, Math.ceil(filtered.length / CATALOG_PAGE_SIZE));
+      catalogPage = Math.min(catalogPage, pageCount);
+      const pageProducts = filtered.slice((catalogPage - 1) * CATALOG_PAGE_SIZE, catalogPage * CATALOG_PAGE_SIZE);
+      if (catalogPhotoObserver) catalogPhotoObserver.disconnect();
       grid.innerHTML = "";
 
-      filtered.forEach(product => {
+      pageProducts.forEach(product => {
         const card = document.createElement("article");
         card.className = `product ${product.hidden ? "hidden-product" : ""}`;
         card.id = `item-${product._ornelaId}`;
@@ -4617,8 +4654,8 @@
                 ? `<div class="product-carousel-track">
                     ${productImages.map((image, imageIndex) => `
                       <div class="product-carousel-slide">
-                        <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} — foto ${imageIndex + 1}" loading="lazy"
-                          title="Clique para ampliar" onerror="handleCarouselImageError(this)"
+                        <img data-catalog-src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} — foto ${imageIndex + 1}" loading="lazy" decoding="async" width="600" height="600"
+                          title="Clique para ampliar" onerror="if(this.hasAttribute('src')) handleCarouselImageError(this)"
                           onclick="openProductImageViewer(${product.realIndex}, ${imageIndex}, event)">
                       </div>
                     `).join("")}
@@ -4674,9 +4711,15 @@
       });
 
       productCount.textContent = `${filtered.length} produto(s)`;
+      observeCatalogPhotos();
+      document.getElementById('catalogPagination').hidden = pageCount <= 1 || Boolean(directCode);
+      document.getElementById('catalogPageStatus').textContent = `Página ${catalogPage} de ${pageCount} · ${filtered.length} peças`;
+      document.getElementById('catalogPrevious').disabled = catalogPage <= 1;
+      document.getElementById('catalogNext').disabled = catalogPage >= pageCount;
+      document.querySelector('#catalogEnd p').textContent = catalogPage < pageCount ? 'Fim desta página. Use “Próximas peças” para continuar.' : 'Você chegou ao final das peças disponíveis.';
       document.getElementById("catalogEnd").hidden = !filtered.length || Boolean(directCode);
       emptyMessage.style.display = filtered.length ? "none" : "block";
-      if (refreshAdminList) renderBulkList();
+      if (refreshAdminList && adminArea.classList.contains('open')) renderBulkList();
       updateDashboard();
       saveAppState();
     }
@@ -7222,6 +7265,14 @@
       printWindow.focus();
       printWindow.print();
     });
+
+    function changeCatalogPage(direction) {
+      catalogPage = Math.max(1, catalogPage + direction);
+      renderProducts(false);
+      document.getElementById('catalogo').scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
+    document.getElementById('catalogPrevious').addEventListener('click', () => changeCatalogPage(-1));
+    document.getElementById('catalogNext').addEventListener('click', () => changeCatalogPage(1));
 
     document.getElementById("backToCatalogTop").addEventListener("click", () => {
       window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
