@@ -27,7 +27,7 @@ function verify(token) {
     .update(encoded)
     .digest("base64url");
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  if (!signature || Buffer.byteLength(signature) !== Buffer.byteLength(expected) || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
     return null;
   }
 
@@ -54,4 +54,4 @@ function requireAdmin(event) {
   return payload?.role === "admin";
 }
 
-module.exports = { createAdminToken, requireAdmin };
+module.exports = { createAdminToken, requireAdmin, sign, verify };

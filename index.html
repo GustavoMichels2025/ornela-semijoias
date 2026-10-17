@@ -2911,6 +2911,7 @@
               <option value="Inativa">Inativa</option>
             </select>
             <textarea class="full" id="resellerNotes" placeholder="Observações, referências e informações adicionais"></textarea>
+            <p class="full">Depois de salvar o cadastro, clique em <strong>Configurar acesso</strong> na linha da revendedora para definir o login e a senha.</p>
             <button class="btn btn-primary full" type="submit" id="saveReseller">Cadastrar revendedora</button>
           </form>
           <div class="reseller-cards" id="resellerRegistryList" style="margin-top:18px;"></div>
@@ -3376,6 +3377,8 @@
     let xmlImportHistory = [];
     let stateReady = false;
     let adminDataReady = false;
+    let stateRevision = null;
+    let savingState = null;
 
     const APP_STORAGE_KEY = "ornelaCatalogoV2";
     const ADMIN_SESSION_KEY = "ornelaAdminSessionV2";
@@ -3427,6 +3430,7 @@
 
     function applyLoadedState(saved, includeLocalCart = true) {
       if (!saved) return;
+      if (saved.revision) stateRevision = saved.revision;
 
       if (Array.isArray(saved.products)) products = saved.products;
       products.forEach(normalizeProductImages);
@@ -3455,6 +3459,7 @@
 
     function currentStatePayload() {
       return {
+        revision: stateRevision,
         products,
         storeConfig,
         ordersHistory,
@@ -3517,23 +3522,21 @@
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         try {
-          const response = await fetch(`${API_BASE}/api/state`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify(currentStatePayload())
-          });
-
-          if (!response.ok) throw new Error("Falha ao salvar no banco.");
+          await saveAppStateNow();
         } catch (error) {
           console.warn("Não foi possível salvar no banco remoto:", error);
+          saveAllStatus.textContent = error.message;
+          saveAllStatus.className = "admin-save-status error";
         }
       }, 450);
     }
 
-    async function saveAppStateNow() {
+    function saveAppStateNow() {
+      savingState = (savingState || Promise.resolve()).catch(() => {}).then(persistAppStateNow);
+      return savingState;
+    }
+
+    async function persistAppStateNow() {
       if (!stateReady) return;
       if (!adminDataReady) throw new Error("Entre novamente no painel para carregar todos os cadastros antes de salvar.");
 
@@ -3566,6 +3569,8 @@
         const detail = await response.text().catch(() => "");
         throw new Error(`Não foi possível salvar no banco. ${detail}`);
       }
+      const saved = await response.json();
+      stateRevision = saved.revision;
     }
 
     async function saveAllAdminChanges() {
@@ -3993,8 +3998,44 @@
         escapeHtml(reseller.name), escapeHtml(reseller.cpf || "—"), escapeHtml(reseller.phone || reseller.whatsapp || "—"),
         escapeHtml(reseller.city || "—"), escapeHtml(reseller.status || "Ativa"), resellerStockTotal(reseller),
         numberToBR(resellerStockValue(reseller)), numberToBR(resellerSalesValue(reseller)),
-        `<button type="button" onclick="editReseller('${reseller.id}')">Editar cadastro</button>`
+        `<button type="button" onclick="editReseller('${reseller.id}')">Editar cadastro</button><button type="button" onclick="configureResellerAccess('${reseller.id}')">Configurar acesso</button>`
       ]));
+    }
+
+    async function configureResellerAccess(id) {
+      const reseller = resellers.find(item => item.id === id);
+      if (!reseller) return;
+      const dialog = document.createElement("dialog");
+      dialog.style.cssText = "margin:auto;padding:24px;border:1px solid #ddd3c3;border-radius:12px;width:460px;max-width:94vw";
+      dialog.innerHTML = `<h3>Acesso de ${escapeHtml(reseller.name)}</h3><form style="display:grid;gap:12px"><label>Login<input name="login" autocomplete="off" required minlength="3" maxlength="80" style="width:100%;padding:10px"></label><label>Nova senha<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Em branco mantém a senha atual" style="width:100%;padding:10px"></label><label><input name="enabled" type="checkbox"> Permitir acesso da revendedora</label><small>Ao trocar a senha ou desativar o acesso, as sessões anteriores serão encerradas.</small><label>Link da área exclusiva<input readonly value="${escapeHtml(new URL('revendedora.html', location.href).href)}" style="width:100%;padding:10px" onclick="this.select()"></label><p role="status"></p><button class="btn btn-primary" type="submit">Salvar acesso</button><button class="btn btn-light" type="button" data-close>Fechar</button></form>`;
+      document.body.appendChild(dialog);
+      dialog.showModal();
+      const form = dialog.querySelector("form"), status = dialog.querySelector('[role="status"]');
+      dialog.querySelector('[data-close]').onclick = () => { dialog.close(); dialog.remove(); };
+      dialog.addEventListener("cancel", () => dialog.remove());
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${sessionStorage.getItem(ADMIN_TOKEN_KEY)}` };
+      const submit = form.querySelector('[type="submit"]');
+      submit.disabled = true;
+      try {
+        const response = await fetch(`/.netlify/functions/reseller?resellerId=${encodeURIComponent(id)}`, { headers, cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok) throw Error(result.error || "Não foi possível carregar o acesso.");
+        form.elements.login.value = result.login;
+        form.elements.enabled.checked = result.enabled;
+        form.elements.password.required = !result.login;
+        submit.disabled = false;
+      } catch (error) { status.textContent = error.message; }
+      form.onsubmit = async event => {
+        event.preventDefault(); submit.disabled = true; status.textContent = "Salvando...";
+        try {
+          const response = await fetch('/.netlify/functions/reseller', { method: 'PUT', headers, body: JSON.stringify({ resellerId: id, login: form.elements.login.value, password: form.elements.password.value, enabled: form.elements.enabled.checked }) });
+          const result = await response.json();
+          if (!response.ok) throw Error(result.error || "Não foi possível salvar.");
+          form.elements.password.value = ""; form.elements.password.required = false;
+          status.textContent = "Acesso salvo. Envie o link, o login e a senha à revendedora.";
+        } catch (error) { status.textContent = error.message; }
+        finally { submit.disabled = false; }
+      };
     }
 
     function renderResellerStock() {
