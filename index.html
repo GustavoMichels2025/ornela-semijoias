@@ -2894,6 +2894,18 @@
 
         <div class="bulk-toolbar">
           <input type="search" id="adminProductSearch" placeholder="Buscar produto por nome, código, categoria ou descrição">
+          <select id="adminProductFilter" aria-label="Filtrar produtos por situação">
+            <option value="all">Todos os produtos</option>
+            <option value="without-image">Sem fotos</option>
+            <option value="with-image">Com fotos</option>
+            <option value="without-stock">Sem estoque</option>
+            <option value="with-stock">Com estoque</option>
+            <option value="visible">Visíveis na vitrine</option>
+            <option value="hidden">Ocultos da vitrine</option>
+            <option value="featured">Com destaque</option>
+            <option value="without-category">Sem categoria</option>
+          </select>
+          <button class="btn btn-light" type="button" id="clearAdminProductFilters">Limpar filtros</button>
           <button class="btn btn-light" type="button" id="selectAllBulk">Selecionar todos</button>
           <button class="btn btn-light" type="button" id="clearBulkSelection">Limpar seleção</button>
 
@@ -3113,6 +3125,8 @@
     const imageSaveStatus = document.getElementById("imageSaveStatus");
     const showHiddenToggle = document.getElementById("showHiddenToggle");
     const adminProductSearch = document.getElementById("adminProductSearch");
+    const adminProductFilter = document.getElementById("adminProductFilter");
+    const clearAdminProductFilters = document.getElementById("clearAdminProductFilters");
     const adminProductSearchStatus = document.getElementById("adminProductSearchStatus");
     const saveAllChanges = document.getElementById("saveAllChanges");
     const saveAllStatus = document.getElementById("saveAllStatus");
@@ -4378,14 +4392,53 @@
       renderProducts();
     }
 
+    function productMatchesAdminFilter(product, filter) {
+      const hasImage = getProductImages(product).some(hasUsableProductImage);
+      const hasStock = Number(product.stock ?? 0) > 0;
+
+      if (filter === "without-image") return !hasImage;
+      if (filter === "with-image") return hasImage;
+      if (filter === "without-stock") return !hasStock;
+      if (filter === "with-stock") return hasStock;
+      if (filter === "visible") return !product.hidden && hasStock;
+      if (filter === "hidden") return Boolean(product.hidden);
+      if (filter === "featured") return Boolean(String(product.tag || "").trim());
+      if (filter === "without-category") return !String(product.category || "").trim();
+      return true;
+    }
+
+    function updateAdminProductFilterCounts() {
+      if (!adminProductFilter) return;
+
+      const labels = {
+        all: "Todos os produtos",
+        "without-image": "Sem fotos",
+        "with-image": "Com fotos",
+        "without-stock": "Sem estoque",
+        "with-stock": "Com estoque",
+        visible: "Visíveis na vitrine",
+        hidden: "Ocultos da vitrine",
+        featured: "Com destaque",
+        "without-category": "Sem categoria"
+      };
+
+      Array.from(adminProductFilter.options).forEach(option => {
+        const count = products.filter(product => productMatchesAdminFilter(product, option.value)).length;
+        option.textContent = `${labels[option.value] || option.textContent} (${count})`;
+      });
+    }
+
     function renderBulkList() {
       if (!bulkList) return;
 
       bulkList.innerHTML = "";
       const adminSearch = normalizeCode(adminProductSearch?.value || "");
+      const adminFilter = adminProductFilter?.value || "all";
+      updateAdminProductFilterCounts();
       const visibleProducts = products
         .map((product, index) => ({ product, index }))
         .filter(({ product }) => {
+          if (!productMatchesAdminFilter(product, adminFilter)) return false;
           if (!adminSearch) return true;
 
           const searchable = normalizeCode([
@@ -4402,13 +4455,14 @@
         });
 
       if (adminProductSearchStatus) {
-        adminProductSearchStatus.textContent = adminSearch
-          ? `${visibleProducts.length} de ${products.length} produto(s) encontrado(s) na gestão.`
+        const selectedFilterLabel = adminProductFilter?.selectedOptions?.[0]?.textContent || "Todos os produtos";
+        adminProductSearchStatus.textContent = (adminSearch || adminFilter !== "all")
+          ? `${visibleProducts.length} de ${products.length} produto(s) encontrado(s) • ${selectedFilterLabel}.`
           : `Mostrando todos os ${products.length} produto(s) cadastrados.`;
       }
 
       if (!visibleProducts.length) {
-        bulkList.innerHTML = `<p class="empty" style="display:block;">Nenhum produto encontrado para essa busca.</p>`;
+        bulkList.innerHTML = `<p class="empty" style="display:block;">Nenhum produto encontrado com os filtros selecionados.</p>`;
         return;
       }
 
@@ -6757,6 +6811,12 @@
       renderProducts();
     });
     adminProductSearch.addEventListener("input", renderBulkList);
+    adminProductFilter.addEventListener("change", renderBulkList);
+    clearAdminProductFilters.addEventListener("click", () => {
+      adminProductSearch.value = "";
+      adminProductFilter.value = "all";
+      renderBulkList();
+    });
     saveAllChanges.addEventListener("click", saveAllAdminChanges);
     document.querySelectorAll("[data-admin-tab]").forEach(button => {
       button.addEventListener("click", () => switchAdminTab(button.dataset.adminTab));
@@ -6796,8 +6856,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
