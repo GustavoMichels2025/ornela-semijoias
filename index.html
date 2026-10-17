@@ -2734,6 +2734,12 @@
     body.product-detail-mode #productGrid .product { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
     body.product-detail-mode #productGrid .product-body { padding: 28px; }
     @media(max-width: 760px) { body.product-detail-mode #productGrid .product { grid-template-columns: 1fr; } body.product-detail-mode #productGrid .product-body { padding: 18px; } }
+    html, body { overscroll-behavior-y: none; }
+    #catalogEnd { max-width: 1180px; margin: 0 auto 48px; padding: 22px 18px; text-align: center; }
+    #catalogEnd p { margin-bottom: 12px; color: var(--muted); font-size: 12px; }
+    #catalogEnd button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border: 1px solid #d9cbb6; border-radius: 999px; background: #fffdf9; color: var(--ink); font: 500 12px "Montserrat",Arial,sans-serif; cursor: pointer; }
+    #catalogEnd button:hover { background: #f2eadc; }
+    #catalogEnd[hidden], body.admin-mode #catalogEnd { display: none; }
   </style>
 </head>
 
@@ -2796,6 +2802,7 @@
     <nav id="sharedProductNav" hidden><a href="/">← Ver todas as peças</a></nav>
     <section class="grid" id="productGrid"></section>
     <p class="empty" id="emptyMessage">Vitrine em preparação. Em breve novas peças Ornela estarão disponíveis.</p>
+    <div id="catalogEnd" hidden><p>Você chegou ao final das peças disponíveis.</p><button id="backToCatalogTop" type="button"><span aria-hidden="true">↑</span> Voltar ao topo</button></div>
 
     <section class="admin" id="adminArea">
       <div class="admin-shell-head">
@@ -4667,6 +4674,7 @@
       });
 
       productCount.textContent = `${filtered.length} produto(s)`;
+      document.getElementById("catalogEnd").hidden = !filtered.length || Boolean(directCode);
       emptyMessage.style.display = filtered.length ? "none" : "block";
       if (refreshAdminList) renderBulkList();
       updateDashboard();
@@ -7215,6 +7223,10 @@
       printWindow.print();
     });
 
+    document.getElementById("backToCatalogTop").addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    });
+
     searchInput.addEventListener("input", () => {
       if (searchInput.value.trim() && selectedCategory !== "Todos") {
         selectedCategory = "Todos";
@@ -7240,6 +7252,7 @@
     (async function initOrnela() {
       searchInput.value = "";
       await loadAppState();
+      searchInput.value = "";
       ensureProductIds();
       stateReady = true;
       loadConfigToForm();
@@ -7265,16 +7278,12 @@
           openAdminLogin();
         }
       }
-      searchInput.value = "";
       const sharedCode = new URLSearchParams(window.location.search).get("p");
-      if (!sharedCode) renderProducts();
       if (sharedCode) {
         const product = products.find(item => item.shareCode === sharedCode || item._ornelaId === sharedCode);
         if (product && !product.hidden && Number(product.stock || 0) > 0) {
           searchInput.value = "";
           selectedCategory = "Todos";
-          renderCategories();
-          renderProducts();
           document.getElementById(`item-${product._ornelaId}`)?.scrollIntoView({ block: "center" });
         } else {
           emptyMessage.textContent = "Esta peça está indisponível no momento. Explore outras opções da vitrine.";
