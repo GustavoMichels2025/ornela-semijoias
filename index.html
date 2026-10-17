@@ -2761,8 +2761,8 @@
     <section class="filters-wrap" id="catalogo">
       <div class="filters">
         <div class="catalog-search-field">
-          <input id="searchInput" class="search" type="search"
-            placeholder="Buscar peça por nome ou código" aria-label="Buscar produtos pelo nome ou código" autocomplete="off" />
+          <input id="searchInput" name="catalog-product-filter" class="search" type="search" value=""
+            placeholder="" aria-label="Buscar produtos pelo nome ou código" autocomplete="off" data-lpignore="true" data-1p-ignore spellcheck="false" />
         </div>
         <div class="category-buttons" id="categoryButtons"></div>
       </div>
@@ -7219,6 +7219,7 @@
     });
 
     (async function initOrnela() {
+      searchInput.value = "";
       await loadAppState();
       ensureProductIds();
       stateReady = true;
@@ -7245,6 +7246,7 @@
           openAdminLogin();
         }
       }
+      searchInput.value = "";
       const sharedCode = new URLSearchParams(window.location.search).get("p");
       if (sharedCode) {
         const product = products.find(item => item.shareCode === sharedCode || item._ornelaId === sharedCode);
