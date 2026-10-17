@@ -2741,7 +2741,7 @@
 
       <div class="nav-actions">
         <a class="btn btn-light" id="instagramLink" href="https://www.instagram.com/ornelasemijoias" target="_blank">Instagram</a>
-        <button class="btn btn-light" type="button" id="toggleAdmin">Acesso da loja</button>
+        <button class="btn btn-light" type="button" id="toggleAdmin">Acesso administrativo</button>
       </div>
     </nav>
   </header>
@@ -3244,7 +3244,7 @@
   <div class="login-modal" id="adminLoginModal" aria-hidden="true">
     <form class="login-card" id="adminLoginForm">
       <div class="login-mark">O</div>
-      <h2>Acesso da loja</h2>
+      <h2>Acesso administrativo</h2>
       <p>Entre com a senha administrativa para gerenciar a vitrine.</p>
       <input type="password" id="adminPasswordInput" placeholder="Senha administrativa" autocomplete="current-password" required>
       <div class="login-actions">
@@ -4225,7 +4225,7 @@
     function openAdminPanel() {
       adminArea.classList.add("open");
       document.body.classList.add("admin-mode");
-      toggleAdmin.textContent = "Fechar painel da loja";
+      toggleAdmin.textContent = "Fechar painel administrativo";
       closeAdminLogin();
       renderProducts();
       renderResellers();
@@ -4237,7 +4237,7 @@
     function closeAdminPanel() {
       adminArea.classList.remove("open");
       document.body.classList.remove("admin-mode");
-      toggleAdmin.textContent = "Acesso da loja";
+      toggleAdmin.textContent = "Acesso administrativo";
       showHiddenToggle.checked = false;
       renderProducts();
     }
