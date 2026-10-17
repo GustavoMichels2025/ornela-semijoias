@@ -2905,7 +2905,7 @@
             <input type="text" id="resellerBank" placeholder="Dados bancários">
             <input type="text" id="resellerReferenceName" placeholder="Nome da referência">
             <input type="text" id="resellerReferencePhone" placeholder="Telefone da referência">
-            <input type="number" id="resellerCommission" placeholder="Comissão %" min="0" max="100" step="0.01">
+            <input type="text" id="resellerCommission" value="25% até R$ 1.000; 30% acima" readonly title="Faixa automática sobre o total de vendas registradas">
             <select id="resellerStatus">
               <option value="Ativa">Ativa</option>
               <option value="Inativa">Inativa</option>
@@ -4077,7 +4077,8 @@
       const inventory = (reseller.inventory || []).filter(item => Number(item.qty || 0) > 0);
       const sales = reseller.sales || [];
       const salesValue = resellerSalesValue(reseller);
-      const commission = salesValue * (Number(reseller.commission || 0) / 100);
+      const commissionRate = Math.round(salesValue * 100) > 100000 ? 30 : 25;
+      const commission = Math.round(salesValue * commissionRate) / 100;
 
       container.innerHTML = `
         <div class="reseller-card" id="printableResellerReport">
@@ -4093,7 +4094,7 @@
             <div class="reseller-kpi"><span>Valor em mãos</span><strong>R$ ${numberToBR(resellerStockValue(reseller))}</strong></div>
             <div class="reseller-kpi"><span>Total vendido</span><strong>R$ ${numberToBR(salesValue)}</strong></div>
           </div>
-          <p><strong>Comissão configurada:</strong> ${numberToBR(reseller.commission || 0)}% • <strong>Comissão estimada:</strong> R$ ${numberToBR(commission)}</p>
+          <p><strong>Comissão por faixa:</strong> 25% até R$ 1.000,00; 30% acima desse total. <strong>Faixa atual:</strong> ${commissionRate}% • <strong>Comissão estimada:</strong> R$ ${numberToBR(commission)}</p>
           <h4 style="margin:20px 0 8px;">Estoque atual</h4>
           ${inventory.length ? panelSheet(["Código", "Produto", "Quantidade", "Unitário R$", "Total R$"], inventory.map(item => [
             escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price), numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))
@@ -4143,7 +4144,7 @@
         resellerBank: reseller.bank,
         resellerReferenceName: reseller.referenceName,
         resellerReferencePhone: reseller.referencePhone,
-        resellerCommission: reseller.commission,
+        resellerCommission: "25% até R$ 1.000; 30% acima",
         resellerStatus: reseller.status,
         resellerNotes: reseller.notes
       };
@@ -6995,7 +6996,7 @@
         bank: document.getElementById("resellerBank").value.trim(),
         referenceName: document.getElementById("resellerReferenceName").value.trim(),
         referencePhone: document.getElementById("resellerReferencePhone").value.trim(),
-        commission: Number(document.getElementById("resellerCommission").value || 0),
+        commission: resellerSalesValue(existing || {}) > 1000 ? 30 : 25,
         status: document.getElementById("resellerStatus").value,
         notes: document.getElementById("resellerNotes").value.trim(),
         createdAt: existing?.createdAt || new Date().toLocaleString("pt-BR"),

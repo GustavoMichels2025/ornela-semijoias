@@ -22,6 +22,7 @@ function setup(conflict = false) {
   };
   const context = { exports: {}, Buffer, console, require: path => {
     if (path === './utils/db') return { getSql: () => sql };
+    if (path === './utils/commission') return require('../netlify/functions/utils/commission');
     if (path === './utils/auth') return { requireAdmin: () => false, verify: token => token === 'valid' ? { role: 'reseller', resellerId: 'r1', version: 1 } : null };
     if (path === './utils/response') return { json: (statusCode, data) => ({ statusCode, body: JSON.stringify(data) }) };
     return require(path);
@@ -52,4 +53,12 @@ test('Quantidade excedente, token inválido e conflito não gravam venda', async
   const concurrent = setup(true);
   assert.equal((await concurrent.request('POST', { action: 'sale', productKey: 'p1', qty: 1, saleId: '12345678-1234-1234-1234-123456789abc' })).statusCode, 409);
   assert.equal(concurrent.written, undefined);
+});
+test('Comissão por faixa aplica percentual ao total e respeita centavos', () => {
+  const { commissionSummary } = require('../netlify/functions/utils/commission');
+  for (const [total, rate, amount] of [[0,25,0],[999.99,25,250],[1000,25,250],[1000.01,30,300],[1001,30,300.3],[2000,30,600]]) {
+    const result = commissionSummary([{total}]);
+    assert.equal(result.rate, rate);
+    assert.equal(result.amount, amount);
+  }
 });

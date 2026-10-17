@@ -4,6 +4,7 @@ const scrypt = promisify(crypto.scrypt);
 const { getSql } = require('./utils/db');
 const { requireAdmin, sign, verify } = require('./utils/auth');
 const { json } = require('./utils/response');
+const { commissionSummary } = require('./utils/commission');
 
 const reply = (status, body) => {
   const result = json(status, body);
@@ -86,7 +87,8 @@ exports.handler = async event => {
       return reply(200, { ok: true });
     }
     if (event.httpMethod !== 'GET') return reply(400, { error: 'Operação não permitida.' });
-    return reply(200, { name: reseller.name, commission: Number(reseller.commission || 0),
+    const commission = commissionSummary(reseller.sales);
+    return reply(200, { name: reseller.name, commission: commission.rate, commissionSummary: commission,
       inventory: (reseller.inventory || []).map(item => ({ productKey: item.productKey, code: item.code, name: state.products?.find(p => p._ornelaId === item.productKey)?.name || item.name, qty: Number(item.qty || 0), price: item.price })),
       sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total })) });
   } catch (error) {
