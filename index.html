@@ -2644,6 +2644,16 @@
       #catalogo .filters { padding: 12px 0; gap: 12px; }
       #catalogo .search { min-height: 50px; }
     }
+    .product-body .product-code {
+      display: block;
+      margin: 5px 0 10px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 1.4;
+      letter-spacing: .2px;
+      overflow-wrap: anywhere;
+    }
   </style>
 </head>
 
@@ -4479,6 +4489,7 @@
             <small>${product.category}</small>
             <h4>${product.name}</h4>
             <p class="desc">${product.description || ""}</p>
+            ${product.code ? `<span class="product-code">Código: ${escapeHtml(product.code)}</span>` : ""}
             <div class="price-row">
               <div>${activePromotion(product) ? `<del class="price-before">De R$ ${escapeHtml(product.price)}</del>` : ""}<span class="price">${activePromotion(product) ? "Por " : ""}R$ ${escapeHtml(sellingPrice(product))}</span></div>
             </div>
