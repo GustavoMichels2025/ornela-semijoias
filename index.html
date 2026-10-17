@@ -4487,9 +4487,9 @@
           </div>
           <div class="product-body">
             <small>${product.category}</small>
+            ${product.code ? `<span class="product-code">Código: ${escapeHtml(product.code)}</span>` : ""}
             <h4>${product.name}</h4>
             <p class="desc">${product.description || ""}</p>
-            ${product.code ? `<span class="product-code">Código: ${escapeHtml(product.code)}</span>` : ""}
             <div class="price-row">
               <div>${activePromotion(product) ? `<del class="price-before">De R$ ${escapeHtml(product.price)}</del>` : ""}<span class="price">${activePromotion(product) ? "Por " : ""}R$ ${escapeHtml(sellingPrice(product))}</span></div>
             </div>
