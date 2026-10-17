@@ -2,6 +2,7 @@ const { json, methodNotAllowed } = require('./utils/response');
 const { getSql } = require('./utils/db');
 const { requireAdmin } = require('./utils/auth');
 const seedState = require('./seed-state.json');
+const { merge, equal } = require('../../state-merge');
 
 const emptyState = { products: [], storeConfig: null, ordersHistory: [], customers: [], resellers: [], cart: [], currentOrderId: '', orderCounter: 1 };
 function sanitizeState(data) {
@@ -37,10 +38,17 @@ exports.handler = async (event) => {
     if (![incoming.products, incoming.customers, incoming.resellers, incoming.ordersHistory].every(Array.isArray)) {
       return json(400, { error: 'Carregue os dados completos do painel antes de salvar. Nenhum cadastro foi alterado.' });
     }
-    const payload = sanitizeState(incoming);
+    const requested = sanitizeState(incoming);
+    for (let attempt = 0; attempt < 3; attempt++) {
     const currentRows = await sql`SELECT data,updated_at FROM public.app_state WHERE id = 1`;
-    if (!incoming.revision || String(incoming.revision) !== String(currentRows[0]?.updated_at)) {
-      return json(409, { error: 'Os dados foram alterados por outra sessão ou revendedora. Atualize o painel antes de continuar para preservar as vendas e estoques recentes.' });
+    const current = currentRows[0];
+    let payload = requested;
+    if (incoming.baseState) {
+      const result = merge(sanitizeState(incoming.baseState), requested, sanitizeState(current.data));
+      if (result.conflicts.length) return json(409, { error: 'O mesmo campo foi alterado em outra sessão. Suas alterações continuam neste navegador. Confira o conflito antes de atualizar.', conflicts: result.conflicts });
+      payload = result.value;
+    } else if (!incoming.revision || String(incoming.revision) !== String(current?.updated_at)) {
+      return json(409, { error: 'Atualize a página uma vez para ativar o novo salvamento sincronizado. Suas alterações locais foram preservadas.' });
     }
     const currentOrders = Array.isArray(currentRows[0]?.data?.ordersHistory) ? currentRows[0].data.ordersHistory : [];
     payload.deletedOrderCodes = currentRows[0]?.data?.deletedOrderCodes || [];
@@ -50,8 +58,11 @@ exports.handler = async (event) => {
       ...payload.ordersHistory,
       ...currentOrders.filter(order => !payloadCodes.has(order.code))
     ];
-    const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(payload)}::jsonb,updated_at=now() WHERE id=1 AND updated_at=${incoming.revision}::timestamptz RETURNING updated_at`;
-    if (!changed.length) return json(409, { error: 'Outra operação atualizou o estoque. Atualize o painel e tente novamente.' });
+    if (equal(payload, current.data)) return json(200, { ...payload, revision: current.updated_at });
+    const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(payload)}::jsonb,updated_at=now() WHERE id=1 AND updated_at=${current.updated_at}::timestamptz RETURNING updated_at`;
+    if (!changed.length) continue;
     return json(200, { ...payload, revision: changed[0].updated_at });
+    }
+    return json(409, { error: 'O banco está recebendo outras atualizações. Suas alterações foram preservadas; tente salvar novamente.' });
   } catch (error) { return json(500, { error: 'Erro ao acessar o banco Neon.', detail: error.message }); }
 };

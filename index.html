@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="/state-merge.js"></script>
 
   <style>
     :root {
@@ -3381,6 +3382,7 @@
     let stateReady = false;
     let adminDataReady = false;
     let stateRevision = null;
+    let adminBaseline = null;
     let savingState = null;
 
     const APP_STORAGE_KEY = "ornelaCatalogoV2";
@@ -3431,9 +3433,16 @@
       return products.some(product => getProductImages(product).some(image => image.startsWith("data:image/")));
     }
 
+    function stateForMerge(saved) {
+      return OrnelaStateMerge.copy({ products: saved.products || [], storeConfig: saved.storeConfig || null,
+        ordersHistory: saved.ordersHistory || [], customers: saved.customers || [], resellers: saved.resellers || [],
+        xmlImportHistory: saved.xmlImportHistory || [], cart: [], currentOrderId: '', orderCounter: saved.orderCounter || 1 });
+    }
+
     function applyLoadedState(saved, includeLocalCart = true) {
       if (!saved) return;
       if (saved.revision) stateRevision = saved.revision;
+      if (saved.revision && [saved.customers, saved.resellers, saved.ordersHistory].every(Array.isArray)) adminBaseline = stateForMerge(saved);
 
       if (Array.isArray(saved.products)) products = saved.products;
       products.forEach(normalizeProductImages);
@@ -3463,6 +3472,7 @@
     function currentStatePayload() {
       return {
         revision: stateRevision,
+        baseState: adminBaseline,
         products,
         storeConfig,
         ordersHistory,
@@ -3559,21 +3569,25 @@
       }
 
       clearTimeout(saveTimer);
+      const submitted = stateForMerge(currentStatePayload());
       const response = await fetch(`${API_BASE}/api/state`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(currentStatePayload())
+        body: JSON.stringify({ ...submitted, revision: stateRevision, baseState: adminBaseline })
       });
 
       if (!response.ok) {
-        const detail = await response.text().catch(() => "");
-        throw new Error(`Não foi possível salvar no banco. ${detail}`);
+        const detail = await response.json().catch(() => ({}));
+        throw new Error([detail.error || "Não foi possível salvar no banco.", detail.conflicts?.length ? `Campos: ${detail.conflicts.join(', ')}` : ''].filter(Boolean).join(' '));
       }
       const saved = await response.json();
-      stateRevision = saved.revision;
+      const pending = OrnelaStateMerge.merge(submitted, stateForMerge(currentStatePayload()), stateForMerge(saved));
+      applyLoadedState({ ...pending.value, revision: saved.revision }, false);
+      adminBaseline = stateForMerge(saved);
+      try { localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(currentStatePayload())); } catch (_) {}
     }
 
     async function saveAllAdminChanges() {
