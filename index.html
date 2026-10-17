@@ -4866,7 +4866,7 @@
 
         row.innerHTML = `
           <input type="checkbox" class="bulk-check" data-index="${index}">
-          <input type="text" value="${escapeHtml(product.name)}" data-bulk-field="name" data-index="${index}" title="Nome">
+          <textarea class="bulk-description" data-bulk-field="name" data-index="${index}" aria-label="Nome principal de ${escapeHtml(product.name)}" title="Nome principal: clique para expandir ou arraste a borda inferior para aumentar.">${escapeHtml(product.name)}</textarea>
           <textarea class="bulk-description" data-bulk-field="description" data-index="${index}" aria-label="Descrição da vitrine de ${escapeHtml(product.name)}" title="Edite o texto completo. A vitrine exibe um resumo de até quatro linhas.">${escapeHtml(product.description || "")}</textarea>
           <input type="text" value="${escapeHtml(product.code || "")}" data-bulk-field="code" data-index="${index}" title="Código/SKU" placeholder="Código/SKU">
           <input type="text" value="${escapeHtml(product.category)}" data-bulk-field="category" data-index="${index}" title="Categoria">
