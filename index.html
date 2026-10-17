@@ -2696,6 +2696,30 @@
     #ordersList .order-actions { margin-top: 10px; }
     #ordersList .order-actions button, #ordersList .order-item-editor button { padding: 6px 9px; font-size: 11px; border-radius: 5px; }
     #ordersList .order-detail-label { color: var(--gold-dark); font-weight: 600; }
+    .panel-sheet-wrap { overflow: auto; max-height: 65vh; border: 1px solid #ded8ce; border-radius: 6px; background: #fff; }
+    .panel-sheet { width: 100%; min-width: 850px; border-collapse: collapse; font: 11px "Montserrat", Arial, sans-serif; text-align: left; }
+    .panel-sheet th { position: sticky; top: 0; z-index: 2; background: #eee7dc; font-weight: 700; }
+    .panel-sheet th, .panel-sheet td { padding: 7px 8px; border-right: 1px solid #e5e0d8; border-bottom: 1px solid #e5e0d8; white-space: nowrap; }
+    .panel-sheet tbody tr:nth-child(even) { background: #faf8f4; }
+    .panel-sheet tbody tr:hover { background: #fff3d8; }
+    .panel-sheet button { padding: 5px 8px; margin-right: 4px; border: 1px solid #ded8ce; border-radius: 4px; background: #fff; color: var(--ink); font: inherit; cursor: pointer; }
+    .panel-sheet button.danger { color: var(--danger); }
+    #customerList, #resellerRegistryList { display: block; }
+    #resellerStockList .reseller-card, #resellerReport .reseller-card { padding: 12px; border-radius: 6px; }
+    #resellerStockList h4, #resellerReport h4 { font-size: 13px; }
+    #resellerReport .reseller-kpis { gap: 6px; margin: 8px 0; }
+    #resellerReport .reseller-kpi { padding: 8px; border-radius: 4px; }
+    #resellerReport .reseller-kpi strong { font-size: 15px; }
+    .admin .reseller-form input, .admin .reseller-form select, .admin .reseller-operation input, .admin .reseller-operation select { min-height: 32px; padding: 7px 9px; font-size: 12px; border-radius: 5px; }
+    #xmlTableWrap { max-height: 65vh; overflow: auto; border-radius: 6px; }
+    #xmlTableWrap th { position: sticky; top: 0; z-index: 2; background: #eee7dc; }
+    #xmlTableWrap th, #xmlTableWrap td { padding: 6px; font-size: 11px; }
+    #xmlTableWrap input, #xmlTableWrap select, #xmlTableWrap textarea { padding: 5px; font-size: 11px; min-height: 28px; border-radius: 4px; }
+    @media print {
+      .panel-sheet-wrap { overflow: visible; max-height: none; }
+      .panel-sheet { min-width: 0; font-size: 9px; }
+      .panel-sheet th, .panel-sheet td { white-space: normal; }
+    }
   </style>
 </head>
 
@@ -3944,6 +3968,10 @@
         ).join("");
     }
 
+    function panelSheet(headers, rows) {
+      return `<div class="panel-sheet-wrap"><table class="panel-sheet"><thead><tr>${headers.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    }
+
     function renderResellerRegistry() {
       const list = document.getElementById("resellerRegistryList");
       if (!resellers.length) {
@@ -3951,22 +3979,12 @@
         return;
       }
 
-      list.innerHTML = resellers.map(reseller => `
-        <div class="reseller-card">
-          <div class="reseller-card-head">
-            <div>
-              <h4>${escapeHtml(reseller.name)}</h4>
-              <small>${escapeHtml(reseller.phone || reseller.whatsapp || "Telefone não informado")} • ${escapeHtml(reseller.city || "Cidade não informada")} • ${escapeHtml(reseller.status || "Ativa")}</small>
-            </div>
-            <button class="btn btn-light" type="button" onclick="editReseller('${reseller.id}')">Editar cadastro</button>
-          </div>
-          <div class="reseller-kpis">
-            <div class="reseller-kpi"><span>Peças em mãos</span><strong>${resellerStockTotal(reseller)}</strong></div>
-            <div class="reseller-kpi"><span>Valor em estoque</span><strong>R$ ${numberToBR(resellerStockValue(reseller))}</strong></div>
-            <div class="reseller-kpi"><span>Vendas registradas</span><strong>R$ ${numberToBR(resellerSalesValue(reseller))}</strong></div>
-          </div>
-        </div>
-      `).join("");
+      list.innerHTML = panelSheet(["Revendedora", "CPF", "Telefone", "Cidade", "Status", "Peças", "Estoque R$", "Vendas R$", "Ações"], resellers.map(reseller => [
+        escapeHtml(reseller.name), escapeHtml(reseller.cpf || "—"), escapeHtml(reseller.phone || reseller.whatsapp || "—"),
+        escapeHtml(reseller.city || "—"), escapeHtml(reseller.status || "Ativa"), resellerStockTotal(reseller),
+        numberToBR(resellerStockValue(reseller)), numberToBR(resellerSalesValue(reseller)),
+        `<button type="button" onclick="editReseller('${reseller.id}')">Editar cadastro</button>`
+      ]));
     }
 
     function renderResellerStock() {
@@ -3986,13 +4004,11 @@
                 <small>${resellerStockTotal(reseller)} peça(s) em mãos — R$ ${numberToBR(resellerStockValue(reseller))}</small>
               </div>
             </div>
-            ${inventory.length ? inventory.map(item => `
-              <div class="reseller-stock-row">
-                <div><strong>${escapeHtml(currentResellerItemName(item))}</strong><br><small>Código: ${escapeHtml(item.code || "sem código")} — R$ ${escapeHtml(item.price)}</small></div>
-                <strong>${Number(item.qty || 0)} un.</strong>
-                <button type="button" onclick="returnResellerItem('${reseller.id}','${item.productKey}')">Devolver item</button>
-              </div>
-            `).join("") : '<div class="reseller-empty">Nenhuma peça com esta revendedora.</div>'}
+            ${inventory.length ? panelSheet(["Código", "Produto", "Quantidade", "Unitário R$", "Total R$", "Ações"], inventory.map(item => [
+              escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price),
+              numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price)),
+              `<button type="button" onclick="returnResellerItem('${reseller.id}','${item.productKey}')">Devolver item</button>`
+            ])) : '<div class="reseller-empty">Nenhuma peça com esta revendedora.</div>'}
           </div>
         `;
       }).join("");
@@ -4028,21 +4044,13 @@
           </div>
           <p><strong>Comissão configurada:</strong> ${numberToBR(reseller.commission || 0)}% • <strong>Comissão estimada:</strong> R$ ${numberToBR(commission)}</p>
           <h4 style="margin:20px 0 8px;">Estoque atual</h4>
-          ${inventory.length ? inventory.map(item => `
-            <div class="reseller-sale-row">
-              <span>${escapeHtml(currentResellerItemName(item))} • ${escapeHtml(item.code || "sem código")}</span>
-              <strong>${Number(item.qty || 0)} un.</strong>
-              <span>R$ ${numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))}</span>
-            </div>
-          `).join("") : '<div class="reseller-empty">Sem itens em estoque.</div>'}
+          ${inventory.length ? panelSheet(["Código", "Produto", "Quantidade", "Unitário R$", "Total R$"], inventory.map(item => [
+            escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price), numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))
+          ])) : '<div class="reseller-empty">Sem itens em estoque.</div>'}
           <h4 style="margin:20px 0 8px;">Histórico de vendas</h4>
-          ${sales.length ? sales.map(sale => `
-            <div class="reseller-sale-row">
-              <span>${escapeHtml(sale.date)} • ${escapeHtml(sale.name)} • ${escapeHtml(sale.code || "sem código")}</span>
-              <strong>${Number(sale.qty || 0)} un.</strong>
-              <span>R$ ${numberToBR(sale.total)}</span>
-            </div>
-          `).join("") : '<div class="reseller-empty">Nenhuma venda registrada.</div>'}
+          ${sales.length ? panelSheet(["Data", "Código", "Produto", "Quantidade", "Total R$"], sales.map(sale => [
+            escapeHtml(sale.date), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total)
+          ])) : '<div class="reseller-empty">Nenhuma venda registrada.</div>'}
         </div>
       `;
     }
@@ -5125,22 +5133,11 @@
         return;
       }
 
-      customerList.innerHTML = filtered.map(customer => `
-        <div class="reseller-card">
-          <div class="reseller-card-head">
-            <div>
-              <strong>${escapeHtml(customer.name)}</strong>
-              <small>Código: ${escapeHtml(customer.code)} • CPF: ${escapeHtml(customer.cpf || "Não informado")}</small>
-            </div>
-            <span>${escapeHtml(customer.whatsapp || customer.phone || "Sem telefone")}</span>
-          </div>
-          <p>${escapeHtml([customer.email, customer.city, customer.state].filter(Boolean).join(" • ") || "Sem informações adicionais")}</p>
-          <div class="reseller-card-actions">
-            <button type="button" onclick="editCustomer('${customer.id}')">Editar</button>
-            <button type="button" class="danger" onclick="removeCustomer('${customer.id}')">Remover</button>
-          </div>
-        </div>
-      `).join("");
+      customerList.innerHTML = panelSheet(["Código", "Cliente", "CPF", "Telefone", "E-mail", "Cidade / UF", "Ações"], filtered.map(customer => [
+        escapeHtml(customer.code), escapeHtml(customer.name), escapeHtml(customer.cpf || "—"), escapeHtml(customer.whatsapp || customer.phone || "—"),
+        escapeHtml(customer.email || "—"), escapeHtml([customer.city, customer.state].filter(Boolean).join(" / ") || "—"),
+        `<button type="button" onclick="editCustomer('${customer.id}')">Editar</button><button type="button" class="danger" onclick="removeCustomer('${customer.id}')">Remover</button>`
+      ]));
     }
 
     function editCustomer(id) {
@@ -7108,6 +7105,9 @@
           .reseller-kpi{border:1px solid #ddd;padding:12px}.reseller-kpi span{display:block;font-size:11px;color:#666}
           .reseller-sale-row{display:grid;grid-template-columns:1fr auto auto;gap:14px;border-top:1px solid #ddd;padding:9px 0}
           small{color:#666}
+          .panel-sheet{width:100%;border-collapse:collapse;font-size:10px;text-align:left}
+          .panel-sheet th,.panel-sheet td{padding:6px;border:1px solid #ddd;white-space:normal}
+          .panel-sheet th{background:#eee7dc}thead{display:table-header-group}tr{break-inside:avoid}
         </style></head><body>${report.outerHTML}</body></html>
       `);
       printWindow.document.close();
