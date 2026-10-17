@@ -2591,6 +2591,59 @@
     #bulkList .product-share-field { gap: 3px; padding-right: 4px; }
     #bulkList .product-share-field button { padding: 5px; border-radius: 4px; font-size: 9px; }
     #bulkList .product-share-field input { font-size: 10px; }
+    #catalogo { scroll-margin-top: 140px; }
+    #catalogo .filters {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 16px;
+      padding: 20px 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      min-width: 0;
+    }
+    #catalogo .catalog-search-field { width: 100%; min-width: 0; }
+    #catalogo .catalog-search-field::before {
+      content: "";
+      width: 16px;
+      height: 16px;
+      left: 18px;
+      font-size: 0;
+      background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23786b5c' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m16 16 4 4'/%3E%3C/svg%3E");
+    }
+    #catalogo .search {
+      display: block;
+      width: 100%;
+      min-height: 52px;
+      padding: 14px 18px 14px 46px;
+      border: 1px solid #ded6ca !important;
+      border-radius: 12px;
+      background: rgba(255,255,255,.88) !important;
+      box-shadow: none;
+      font: 400 16px "Montserrat", Arial, sans-serif;
+    }
+    #catalogo .search::placeholder { color: #857a6d; }
+    #catalogo .search:focus { outline: none; border-color: var(--gold-dark) !important; box-shadow: 0 0 0 3px rgba(128,98,37,.08); }
+    #catalogo .category-buttons {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 0 0 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #d8cec0 transparent;
+    }
+    #catalogo .chip { flex: 0 0 auto; padding: 9px 14px; font-size: 12px; font-weight: 500; white-space: nowrap; box-shadow: none; }
+    @media (max-width: 760px) {
+      #catalogo { scroll-margin-top: 180px; }
+      #catalogo .filters { padding: 12px 0; gap: 12px; }
+      #catalogo .search { min-height: 50px; }
+    }
   </style>
 </head>
 
@@ -2629,7 +2682,7 @@
       <div class="filters">
         <div class="catalog-search-field">
           <input id="searchInput" class="search" type="search"
-            placeholder="Digite parte do nome da peça..." aria-label="Buscar produtos pelo nome" autocomplete="off" />
+            placeholder="Buscar peça por nome ou código" aria-label="Buscar produtos pelo nome ou código" autocomplete="off" />
         </div>
         <div class="category-buttons" id="categoryButtons"></div>
       </div>
