@@ -33,7 +33,11 @@ exports.handler = async (event) => {
       });
     }
     if (!requireAdmin(event)) return json(401, { error: 'Acesso administrativo necessário.' });
-    const payload = sanitizeState(JSON.parse(event.body || '{}'));
+    const incoming = JSON.parse(event.body || '{}');
+    if (![incoming.products, incoming.customers, incoming.resellers, incoming.ordersHistory].every(Array.isArray)) {
+      return json(400, { error: 'Carregue os dados completos do painel antes de salvar. Nenhum cadastro foi alterado.' });
+    }
+    const payload = sanitizeState(incoming);
     const currentRows = await sql`SELECT data FROM public.app_state WHERE id = 1`;
     const currentOrders = Array.isArray(currentRows[0]?.data?.ordersHistory) ? currentRows[0].data.ordersHistory : [];
     payload.deletedOrderCodes = currentRows[0]?.data?.deletedOrderCodes || [];

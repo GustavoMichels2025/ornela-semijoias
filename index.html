@@ -3375,6 +3375,7 @@
     let resellers = [];
     let xmlImportHistory = [];
     let stateReady = false;
+    let adminDataReady = false;
 
     const APP_STORAGE_KEY = "ornelaCatalogoV2";
     const ADMIN_SESSION_KEY = "ornelaAdminSessionV2";
@@ -3467,6 +3468,7 @@
     }
 
     async function loadAppState() {
+      adminDataReady = false;
       try {
         const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
         const response = await fetch(`${API_BASE}/api/state`, {
@@ -3474,7 +3476,13 @@
           headers: token ? { "Authorization": `Bearer ${token}` } : {}
         });
         if (response.ok) {
-          applyLoadedState(await response.json(), false);
+          const loaded = await response.json();
+          adminDataReady = Boolean(token) && [loaded.customers, loaded.resellers, loaded.ordersHistory].every(Array.isArray);
+          if (token && !adminDataReady) {
+            sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+            sessionStorage.removeItem(ADMIN_SESSION_KEY);
+          }
+          applyLoadedState(loaded, false);
           return;
         }
       } catch (error) {
@@ -3491,6 +3499,7 @@
 
     function saveAppState() {
       if (!stateReady) return;
+      if (!adminDataReady) return;
 
       try {
         localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(currentStatePayload()));
@@ -3526,6 +3535,7 @@
 
     async function saveAppStateNow() {
       if (!stateReady) return;
+      if (!adminDataReady) throw new Error("Entre novamente no painel para carregar todos os cadastros antes de salvar.");
 
       if (hasPendingLocalProductImages()) {
         throw new Error("Existem imagens locais pendentes. Envie as imagens ao Neon antes de salvar o catálogo.");
@@ -4137,7 +4147,7 @@
     }
 
     function isAdminAuthenticated() {
-      return Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY)) || sessionStorage.getItem(ADMIN_SESSION_KEY) === "ok";
+      return adminDataReady && Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY));
     }
 
     function openAdminLogin() {
@@ -4160,6 +4170,8 @@
       closeAdminLogin();
       renderProducts();
       renderResellers();
+      renderCustomers();
+      renderOrdersHistory();
       adminArea.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
@@ -6456,6 +6468,7 @@
         sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
         sessionStorage.setItem(ADMIN_SESSION_KEY, "ok");
         await loadAppState();
+        if (!adminDataReady) throw new Error("Não foi possível carregar os cadastros administrativos. Entre novamente.");
         renderCustomers();
         openAdminPanel();
       } catch (error) {
