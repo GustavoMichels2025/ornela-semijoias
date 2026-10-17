@@ -2720,6 +2720,9 @@
       .panel-sheet { min-width: 0; font-size: 9px; }
       .panel-sheet th, .panel-sheet td { white-space: normal; }
     }
+    .product-body h4 { font-family: "Montserrat", Arial, sans-serif; font-size: 14px; font-weight: 600; line-height: 1.4; text-transform: uppercase; letter-spacing: .25px; }
+    .product-body .desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; font-family: "Montserrat", Arial, sans-serif; font-size: 11px; font-weight: 400; line-height: 1.5; max-height: 6em; min-height: 0; color: var(--muted); }
+    @media (max-width: 760px) { .product-body h4 { font-size: 12px; } .product-body .desc { font-size: 10px; } }
   </style>
 </head>
 
@@ -4520,6 +4523,15 @@
         .trim();
     }
 
+    function productDescriptionSummary(value) {
+      const decoder = document.createElement("textarea");
+      decoder.innerHTML = String(value || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const text = decoder.value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      if (text.length <= 180) return text;
+      const cut = text.slice(0, 177);
+      return cut.slice(0, cut.lastIndexOf(" ") > 110 ? cut.lastIndexOf(" ") : cut.length).replace(/[ ,;:.]+$/, "") + "…";
+    }
+
     function activePromotion(product) {
       const regular = brMoneyToNumber(product.price);
       const promotional = brMoneyToNumber(product.promotionPrice);
@@ -4592,8 +4604,8 @@
           <div class="product-body">
             <small>${product.category}</small>
             ${product.code ? `<span class="product-code">Código: ${escapeHtml(product.code)}</span>` : ""}
-            <h4>${product.name}</h4>
-            <p class="desc">${product.description || ""}</p>
+            <h4>${escapeHtml(product.name)}</h4>
+            <p class="desc">${escapeHtml(productDescriptionSummary(product.description))}</p>
             <div class="price-row">
               <div>${activePromotion(product) ? `<del class="price-before">De R$ ${escapeHtml(product.price)}</del>` : ""}<span class="price">${activePromotion(product) ? "Por " : ""}R$ ${escapeHtml(sellingPrice(product))}</span></div>
             </div>

@@ -11,6 +11,10 @@ const reply = (status, body) => {
   result.headers = { ...result.headers, 'Cache-Control': 'no-store' };
   return result;
 };
+function productPhoto(product) {
+  return [product?.image, ...(Array.isArray(product?.images) ? product.images : [])]
+    .find(value => typeof value === 'string' && /^(https?:\/\/|\/api\/image\?key=)/i.test(value)) || '';
+}
 exports.handler = async event => {
   if (!['GET', 'POST', 'PUT'].includes(event.httpMethod)) return reply(405, { error: 'Método não permitido.' });
   try {
@@ -103,8 +107,11 @@ exports.handler = async event => {
     if (event.httpMethod !== 'GET') return reply(400, { error: 'Operação não permitida.' });
     const commission = commissionSummary(reseller.sales);
     return reply(200, { name: reseller.name, commission: commission.rate, commissionSummary: commission,
-      inventory: (reseller.inventory || []).map(item => ({ productKey: item.productKey, code: item.code, name: state.products?.find(p => p._ornelaId === item.productKey)?.name || item.name, qty: Number(item.qty || 0), price: item.price })),
-      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,reversedAt:s.reversedAt || null })) });
+      inventory: (reseller.inventory || []).map(item => {
+        const product = state.products?.find(p => p._ornelaId === item.productKey);
+        return { productKey: item.productKey, code: item.code, name: product?.name || item.name, image: productPhoto(product), description: product?.description || '', qty: Number(item.qty || 0), price: item.price };
+      }),
+      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
   } catch (error) {
     if (error.code === '23505') return reply(409, { error: 'Este login já está sendo usado.' });
     return reply(500, { error: 'Não foi possível concluir. Tente novamente ou fale com a loja.' });
