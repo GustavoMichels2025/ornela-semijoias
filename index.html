@@ -7248,6 +7248,7 @@
       }
       searchInput.value = "";
       const sharedCode = new URLSearchParams(window.location.search).get("p");
+      if (!sharedCode) renderProducts();
       if (sharedCode) {
         const product = products.find(item => item.shareCode === sharedCode || item._ornelaId === sharedCode);
         if (product && !product.hidden && Number(product.stock || 0) > 0) {
