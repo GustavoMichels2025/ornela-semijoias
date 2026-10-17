@@ -3698,7 +3698,8 @@
         const uploadedItem = uploaded[0];
 
         if (uploadedItem?.url) {
-          const product = products[item.productIndex];
+          const product = products.find(p => p._ornelaId === item.product._ornelaId);
+          if (!product) throw new Error("O produto foi removido durante o envio da imagem.");
           normalizeProductImages(product);
           product.images[item.imageIndex] = uploadedItem.url;
           product.image = product.images[0] || "";
@@ -3748,10 +3749,13 @@
       const uploaded = Array.isArray(data.uploaded) ? data.uploaded : [];
       if (uploaded.length !== pending.length) throw new Error("Nem todas as imagens foram copiadas para o banco.");
 
+      const currentProduct = findProductByKey(product._ornelaId);
+      if (!currentProduct) throw new Error("O produto foi removido durante o envio.");
+      normalizeProductImages(currentProduct);
       pending.forEach((item, index) => {
-        product.images[item.imageIndex] = uploaded[index].url;
+        currentProduct.images[item.imageIndex] = uploaded[index].url;
       });
-      product.image = product.images[0] || "";
+      currentProduct.image = currentProduct.images[0] || "";
       return uploaded.length;
     }
 
@@ -4729,6 +4733,7 @@
     function openEditProduct(index) {
       const product = products[index];
       if (!product) return;
+      editForm.dataset.productId = product._ornelaId;
 
       document.getElementById("editIndex").value = index;
       document.getElementById("editName").value = product.name || "";
@@ -4816,6 +4821,11 @@
       }
     }
 
+    function productIndexFromRow(element) {
+      const id = element.closest('.bulk-row')?.dataset.productId;
+      return id ? products.findIndex(product => product._ornelaId === id) : -1;
+    }
+
     function renderBulkList() {
       if (!bulkList) return;
 
@@ -4863,6 +4873,7 @@
         const productImages = normalizeProductImages(product);
         const row = document.createElement("div");
         row.className = "bulk-row";
+        row.dataset.productId = product._ornelaId;
 
         row.innerHTML = `
           <input type="checkbox" class="bulk-check" data-index="${index}">
@@ -4889,23 +4900,23 @@
               <div class="product-image-thumb">
                 <img src="${escapeHtml(image)}" alt="Imagem ${imageIndex + 1} de ${escapeHtml(product.name)}" loading="lazy">
                 <button class="product-image-remove" type="button" title="Remover imagem"
-                  onclick="removeProductImage(${index}, ${imageIndex})">×</button>
+                  onclick="removeProductImage(productIndexFromRow(this), ${imageIndex})">×</button>
               </div>
             `).join("")}
             ${productImages.length < 3 ? `
               <label class="product-image-add" title="Adicionar imagem">
                 +
-                <input type="file" accept="image/*" multiple onchange="addImagesToProduct(${index}, this.files, this)">
+                <input type="file" accept="image/*" multiple onchange="addImagesToProduct(productIndexFromRow(this), this.files, this)">
               </label>
             ` : ""}
             <span class="product-image-count">${productImages.length}/3</span>
             ${productImages.length > 0 ? `
-              <button class="product-images-save" type="button" onclick="saveProductGallery(${index}, this)">Salvar fotos</button>
+              <button class="product-images-save" type="button" onclick="saveProductGallery(productIndexFromRow(this), this)">Salvar fotos</button>
             ` : ""}
           </div>
           <div class="product-share-field">
             <input type="text" readonly value="${escapeHtml(productShareLink(product))}" aria-label="Link direto do produto" title="Link direto do produto">
-            <button type="button" onclick="copyProductLink(${index}, this)">Copiar link</button>
+            <button type="button" onclick="copyProductLink(productIndexFromRow(this), this)">Copiar link</button>
           </div>
         `;
 
@@ -4932,10 +4943,14 @@
       try {
         for (const file of files) {
           const dataUrl = await optimizeImageFile(file);
-          product.images.push(dataUrl);
+          const current = findProductByKey(product._ornelaId);
+          if (!current) throw new Error("O produto foi removido durante a leitura da foto.");
+          normalizeProductImages(current);
+          if (current.images.length >= 3) break;
+          current.images.push(dataUrl);
+          current.image = current.images[0] || "";
         }
 
-        product.image = product.images[0] || "";
         renderBulkList();
       } catch (error) {
         alert(error.message || "Não foi possível preparar as imagens.");
@@ -6730,7 +6745,7 @@
     editForm.addEventListener("submit", async event => {
       event.preventDefault();
 
-      const index = Number(document.getElementById("editIndex").value);
+      const index = products.findIndex(product => product._ornelaId === editForm.dataset.productId);
       if (!products[index]) return;
 
       const editedImage = document.getElementById("editImage").value.trim();
@@ -6787,7 +6802,7 @@
     });
 
     bulkList.addEventListener("input", event => {
-      const index = Number(event.target.dataset.index);
+      const index = productIndexFromRow(event.target);
       const field = event.target.dataset.bulkField;
 
       if (!field || Number.isNaN(index) || !products[index]) return;
@@ -6807,7 +6822,7 @@
     });
 
     bulkList.addEventListener("change", event => {
-      const index = Number(event.target.dataset.index);
+      const index = productIndexFromRow(event.target);
       const field = event.target.dataset.bulkField;
 
       if (!field || Number.isNaN(index) || !products[index]) return;
@@ -6834,7 +6849,7 @@
 
     function selectedBulkIndexes() {
       return Array.from(document.querySelectorAll(".bulk-check:checked"))
-        .map(input => Number(input.dataset.index))
+        .map(input => productIndexFromRow(input))
         .filter(index => !Number.isNaN(index) && products[index]);
     }
 
