@@ -5250,6 +5250,7 @@
 
           return {
             productIndex: item.index,
+            productKey: product._ornelaId,
             qty: item.qty,
             name: product.name,
             code: product.code || "sem código",
@@ -5409,6 +5410,7 @@
             <button class="save-order" type="button" onclick="saveOrderChanges('${order.code}', this)" ${locked ? "disabled" : ""}>Salvar alterações</button>
             <button type="button" onclick="finalizeOrder('${order.code}')">Finalizar venda</button>
             <button type="button" onclick="cancelOrder('${order.code}')">Cancelar pedido</button>
+            ${locked ? `<button type="button" onclick="deleteFinalizedOrder('${order.code}', this)">Excluir pedido finalizado</button>` : ""}
           </div>
         </div>
       `}).join("");
@@ -5594,6 +5596,62 @@
       renderOrdersHistory();
       saveAppState();
       alert("Venda finalizada e estoque atualizado.");
+    }
+
+    function askOrderDeletionQuestion(message) {
+      return new Promise(resolve => {
+        const dialog = document.createElement("dialog");
+        dialog.style.cssText = "margin:auto;padding:24px;border:1px solid #ddd3c3;border-radius:16px;max-width:420px;width:90%;font:14px Montserrat,Arial,sans-serif;";
+        const question = document.createElement("p");
+        question.textContent = message;
+        question.style.marginBottom = "20px";
+        dialog.appendChild(question);
+        const finish = answer => { dialog.close(); dialog.remove(); resolve(answer); };
+        for (const [label, answer] of [["Sim", true], ["Não", false]]) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = answer ? "btn btn-primary" : "btn btn-light";
+          option.textContent = label;
+          option.style.marginRight = "10px";
+          option.addEventListener("click", () => finish(answer));
+          dialog.appendChild(option);
+        }
+        dialog.addEventListener("cancel", event => { event.preventDefault(); finish(null); });
+        document.body.appendChild(dialog);
+        dialog.showModal();
+      });
+    }
+
+    async function deleteFinalizedOrder(code, button) {
+      const order = ordersHistory.find(item => item.code === code);
+      if (!order || order.status !== "Finalizado") return;
+      if (await askOrderDeletionQuestion("Deseja mesmo excluir o pedido já finalizado?") !== true) return;
+      const returnStock = await askOrderDeletionQuestion("Deseja retornar o saldo dos itens do pedido ao estoque?");
+      if (returnStock === null) return;
+      button.disabled = true;
+      button.textContent = "Excluindo...";
+      clearTimeout(saveTimer);
+      try {
+        await saveAppStateNow();
+        const response = await fetch(`${API_BASE}/api/order`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${sessionStorage.getItem(ADMIN_TOKEN_KEY)}` },
+          body: JSON.stringify({ code, finalized: true, returnStock })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Não foi possível excluir o pedido.");
+        ordersHistory = ordersHistory.filter(item => item.code !== code);
+        await loadAppState();
+        renderCategories();
+        renderProducts();
+        renderOrdersHistory();
+        alert(returnStock ? "Pedido excluído e saldo dos itens devolvido ao estoque." : "Pedido excluído. O estoque foi mantido.");
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Excluir pedido finalizado";
+      }
     }
 
     async function cancelOrder(code) {

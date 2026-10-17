@@ -36,6 +36,8 @@ exports.handler = async (event) => {
     const payload = sanitizeState(JSON.parse(event.body || '{}'));
     const currentRows = await sql`SELECT data FROM public.app_state WHERE id = 1`;
     const currentOrders = Array.isArray(currentRows[0]?.data?.ordersHistory) ? currentRows[0].data.ordersHistory : [];
+    payload.deletedOrderCodes = currentRows[0]?.data?.deletedOrderCodes || [];
+    payload.ordersHistory = payload.ordersHistory.filter(order => !payload.deletedOrderCodes.includes(order.code));
     const payloadCodes = new Set(payload.ordersHistory.map(order => order.code));
     payload.ordersHistory = [
       ...payload.ordersHistory,
