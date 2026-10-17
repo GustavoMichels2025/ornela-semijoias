@@ -25,7 +25,7 @@ exports.handler = async (event) => {
       const stored = { ...emptyState, ...(rows[0]?.data || {}) };
       if (requireAdmin(event)) return json(200, stored);
       return json(200, {
-        products: stored.products,
+        products: stored.products.map(({ costPrice, unitCost, cost, ...product }) => product),
         storeConfig: stored.storeConfig,
         cart: [],
         currentOrderId: '',
@@ -45,4 +45,3 @@ exports.handler = async (event) => {
     return json(200, payload);
   } catch (error) { return json(500, { error: 'Erro ao acessar o banco Neon.', detail: error.message }); }
 };
-

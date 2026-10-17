@@ -876,7 +876,7 @@
 
     .bulk-row {
       display: grid;
-      grid-template-columns: 34px 1.1fr 0.65fr 0.7fr 0.5fr 0.5fr 0.7fr 0.7fr 300px;
+      grid-template-columns: 34px 1.1fr 0.65fr 0.7fr repeat(3, minmax(85px, .5fr)) 0.5fr 0.7fr 0.7fr 300px;
       gap: 10px;
       align-items: center;
       padding: 12px;
@@ -894,6 +894,9 @@
       background: #fff;
       outline: none;
     }
+
+    .bulk-price-field { display: grid; gap: 5px; min-width: 0; font-size: 10px; color: var(--muted); }
+    .price-before { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
 
     .product-image-manager {
       display: flex;
@@ -4261,6 +4264,16 @@
         .trim();
     }
 
+    function activePromotion(product) {
+      const regular = brMoneyToNumber(product.price);
+      const promotional = brMoneyToNumber(product.promotionPrice);
+      return product.tag === "Promoção" && promotional > 0 && promotional < regular;
+    }
+
+    function sellingPrice(product) {
+      return activePromotion(product) ? numberToBR(brMoneyToNumber(product.promotionPrice)) : product.price;
+    }
+
     function renderProducts(refreshAdminList = true) {
       const searchTerms = normalizeCatalogSearch(searchInput.value).split(/\s+/).filter(Boolean);
       const showHidden = showHiddenToggle.checked;
@@ -4324,7 +4337,7 @@
             <h4>${product.name}</h4>
             <p class="desc">${product.description || ""}</p>
             <div class="price-row">
-              <div><span class="price">R$ ${product.price}</span></div>
+              <div>${activePromotion(product) ? `<del class="price-before">De R$ ${escapeHtml(product.price)}</del>` : ""}<span class="price">${activePromotion(product) ? "Por " : ""}R$ ${escapeHtml(sellingPrice(product))}</span></div>
             </div>
             <div class="stock-label ${(Number(product.stock ?? 1) <= 1) ? "low" : ""}">
               ${Number(product.stock ?? 1) > 0 ? `Estoque: ${Number(product.stock ?? 1)}` : "Sem estoque"}
@@ -4476,7 +4489,9 @@
           <input type="text" value="${escapeHtml(product.name)}" data-bulk-field="name" data-index="${index}" title="Nome">
           <input type="text" value="${escapeHtml(product.code || "")}" data-bulk-field="code" data-index="${index}" title="Código/SKU" placeholder="Código/SKU">
           <input type="text" value="${escapeHtml(product.category)}" data-bulk-field="category" data-index="${index}" title="Categoria">
-          <input type="text" value="${escapeHtml(product.price)}" data-bulk-field="price" data-index="${index}" title="Preço">
+          <label class="bulk-price-field">Custo (R$)<input type="text" inputmode="decimal" value="${escapeHtml(product.costPrice || "")}" data-bulk-field="costPrice" data-index="${index}" title="Preço de custo"></label>
+          <label class="bulk-price-field">Preço normal (R$)<input type="text" inputmode="decimal" value="${escapeHtml(product.price)}" data-bulk-field="price" data-index="${index}" title="Preço normal"></label>
+          <label class="bulk-price-field">Promoção (R$)<input type="text" inputmode="decimal" value="${escapeHtml(product.promotionPrice || "")}" data-bulk-field="promotionPrice" data-index="${index}" title="Preço promocional: menor que o preço normal"></label>
           <input type="number" value="${product.stock ?? 1}" data-bulk-field="stock" data-index="${index}" title="Estoque" min="0">
           <select data-bulk-field="tag" data-index="${index}">
             <option value="" ${!product.tag ? "selected" : ""}>Sem destaque</option>
@@ -5056,7 +5071,7 @@
             qty: item.qty,
             name: product.name,
             code: product.code || "sem código",
-            price: product.price,
+            price: sellingPrice(product),
             category: product.category
           };
         });
@@ -5349,7 +5364,7 @@
           qty: 1,
           name: product.name,
           code: product.code || "sem código",
-          price: product.price,
+          price: sellingPrice(product),
           category: product.category
         });
       }
@@ -5482,7 +5497,7 @@
       const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
       const totalValue = cart.reduce((sum, item) => {
         const product = products[item.index];
-        return sum + (brMoneyToNumber(product.price) * item.qty);
+        return sum + (brMoneyToNumber(sellingPrice(product)) * item.qty);
       }, 0);
 
       cartButton.textContent = `Sacola (${totalQty})`;
@@ -5503,7 +5518,7 @@
           <div class="cart-item">
             <div>
               <strong>${product.name}</strong>
-              <small>${item.qty} un. — R$ ${product.price} • Código: ${product.code || "sem código"}</small>
+              <small>${item.qty} un. — R$ ${sellingPrice(product)} • Código: ${product.code || "sem código"}</small>
             </div>
             <button class="cart-remove" type="button" onclick="removeFromCart(${item.index})">remover</button>
           </div>
@@ -5512,7 +5527,7 @@
 
       const lines = cart.map(item => {
         const product = products[item.index];
-        return `• ${item.qty}x ${product.name} - Código: ${product.code || "sem código"} - R$ ${product.price}`;
+        return `• ${item.qty}x ${product.name} - Código: ${product.code || "sem código"} - R$ ${sellingPrice(product)}`;
       }).join("%0A");
 
       ensureOrderCode();
@@ -5843,6 +5858,7 @@
         if (existingProduct) {
           existingProduct.stock = Number(existingProduct.stock || 0) + qtyToAdd;
           existingProduct.price = numberToBR(brMoneyToNumber(item.price));
+          existingProduct.costPrice = numberToBR(item.unitCost);
           existingProduct.category = existingProduct.category || category;
           existingProduct.description = existingProduct.description || item.catalogDescription || item.name;
           existingProduct.xmlName = existingProduct.xmlName || item.name;
@@ -5854,6 +5870,7 @@
             name: item.name,
             category,
             price: numberToBR(brMoneyToNumber(item.price)),
+            costPrice: numberToBR(item.unitCost),
             code: item.code,
             sourceCode: item.code,
             xmlName: item.name,
