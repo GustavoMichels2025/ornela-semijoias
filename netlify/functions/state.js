@@ -17,11 +17,11 @@ exports.handler = async (event) => {
   try {
     const sql = getSql();
     if (event.httpMethod === 'GET') {
-      let rows = await sql`SELECT data,updated_at FROM public.app_state WHERE id = 1`;
+      let rows = await sql`SELECT data,updated_at::text AS updated_at FROM public.app_state WHERE id = 1`;
       if (!rows.length) {
         const seed = sanitizeState(seedState);
         await sql`INSERT INTO public.app_state (id,data,updated_at) VALUES (1, ${JSON.stringify(seed)}::jsonb, now()) ON CONFLICT (id) DO NOTHING`;
-        rows = await sql`SELECT data,updated_at FROM public.app_state WHERE id = 1`;
+        rows = await sql`SELECT data,updated_at::text AS updated_at FROM public.app_state WHERE id = 1`;
       }
       const stored = { ...emptyState, ...(rows[0]?.data || {}) };
       if (requireAdmin(event)) return json(200, { ...stored, revision: rows[0].updated_at });
@@ -40,7 +40,7 @@ exports.handler = async (event) => {
     }
     const requested = sanitizeState(incoming);
     for (let attempt = 0; attempt < 3; attempt++) {
-    const currentRows = await sql`SELECT data,updated_at FROM public.app_state WHERE id = 1`;
+    const currentRows = await sql`SELECT data,updated_at::text AS updated_at FROM public.app_state WHERE id = 1`;
     const current = currentRows[0];
     let payload = requested;
     if (incoming.baseState) {
@@ -59,7 +59,7 @@ exports.handler = async (event) => {
       ...currentOrders.filter(order => !payloadCodes.has(order.code))
     ];
     if (equal(payload, current.data)) return json(200, { ...payload, revision: current.updated_at });
-    const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(payload)}::jsonb,updated_at=now() WHERE id=1 AND updated_at=${current.updated_at}::timestamptz RETURNING updated_at`;
+    const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(payload)}::jsonb,updated_at=now() WHERE id=1 AND data=${JSON.stringify(current.data)}::jsonb RETURNING updated_at::text AS updated_at`;
     if (!changed.length) continue;
     return json(200, { ...payload, revision: changed[0].updated_at });
     }
