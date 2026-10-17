@@ -29,14 +29,26 @@ $('productCodeSearch').addEventListener('keydown',event=>{if(event.key==='Enter'
 function renderSalesChart(){
   const current=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
   const months=Array.from({length:6},(_,i)=>{const date=new Date(current.getFullYear(),current.getMonth()-5+i,1);return {key:date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0'),label:date.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}),total:0}});
-  for(const sale of data.sales){const text=String(sale.date||'');const br=text.match(/^(\d{2})\/(\d{2})\/(\d{4})/),iso=text.match(/^(\d{4})-(\d{2})/);const key=br?br[3]+'-'+br[2]:iso?iso[1]+'-'+iso[2]:'';const month=months.find(m=>m.key===key);if(month)month.total+=Number(sale.total||0)}
+  for(const sale of data.sales.filter(s=>!s.reversedAt)){const text=String(sale.date||'');const br=text.match(/^(\d{2})\/(\d{2})\/(\d{4})/),iso=text.match(/^(\d{4})-(\d{2})/);const key=br?br[3]+'-'+br[2]:iso?iso[1]+'-'+iso[2]:'';const month=months.find(m=>m.key===key);if(month)month.total+=Number(sale.total||0)}
   const max=Math.max(1,...months.map(m=>m.total));
   let svg='<svg class="chart" viewBox="0 0 720 260" role="img" aria-label="Vendas dos últimos seis meses"><title>Vendas por mês</title>';
   for(let n=0;n<=4;n++){const y=205-n*40;svg+='<line x1="85" y1="'+y+'" x2="705" y2="'+y+'" stroke="#dfd6c8"/><text class="chart-label" x="75" y="'+(y+4)+'" text-anchor="end">'+esc(money(max*n/4))+'</text>'}
   months.forEach((m,i)=>{const x=108+i*99,height=m.total/max*160;svg+='<rect x="'+x+'" y="'+(205-height)+'" width="58" height="'+height+'" rx="5" fill="'+(i===5?'#344d43':'#b99b63')+'"><title>'+esc(m.label+': R$ '+money(m.total))+'</title></rect><text class="chart-label" x="'+(x+29)+'" y="'+Math.max(26,195-height)+'" text-anchor="middle">'+esc(money(m.total))+'</text><text class="chart-label" x="'+(x+29)+'" y="235" text-anchor="middle">'+esc(m.label)+'</text>'});
   $('salesChart').innerHTML=svg+'</svg>';
 }
-async function refresh(){data=await request();$('loginBox').hidden=true;$('portal').hidden=false;$('name').textContent=data.name;const inventory=data.inventory.filter(i=>i.qty>0);$('inventory').innerHTML=table(['Código','Produto','Quantidade','Preço R$'],inventory.map(i=>[i.code,i.name,i.qty,i.price]));filterSaleProducts();$('sales').innerHTML=table(['Data','Código','Produto','Quantidade','Total R$'],data.sales.map(s=>[s.date,s.code,s.name,s.qty,money(s.total)]));
+function renderSalesTable(){
+  $('sales').innerHTML='<table><thead><tr>'+['Data','Código','Produto','Quantidade','Total R$','Situação','Ações'].map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+data.sales.map(s=>'<tr>'+[s.date,s.code,s.name,s.qty,money(s.total),s.reversedAt?'Estornada':'Confirmada'].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(s.reversedAt?'—':'<button type="button" data-reverse="'+esc(s.id)+'">Estornar venda</button>')+'</td></tr>').join('')+'</tbody></table>';
+}
+$('sales').addEventListener('click',async event=>{
+  const button=event.target.closest('[data-reverse]');if(!button||busy)return;
+  const sale=data.sales.find(s=>s.id===button.dataset.reverse);if(!sale||sale.reversedAt)return;
+  if(!confirm('Estornar a venda de '+sale.qty+' unidade(s) de '+sale.name+'? Os itens voltarão ao seu estoque e a comissão será recalculada.'))return;
+  busy=true;button.disabled=true;
+  try{await request('POST',{action:'reverse-sale',saleId:sale.id});await refresh();$('message').textContent='Venda estornada. Itens devolvidos ao seu estoque e comissão recalculada.'}
+  catch(error){$('message').textContent=error.message}
+  finally{busy=false;button.disabled=false}
+});
+async function refresh(){data=await request();$('loginBox').hidden=true;$('portal').hidden=false;$('name').textContent=data.name;const inventory=data.inventory.filter(i=>i.qty>0);$('inventory').innerHTML=table(['Código','Produto','Quantidade','Preço R$'],inventory.map(i=>[i.code,i.name,i.qty,i.price]));filterSaleProducts();renderSalesTable();
   const summary=data.commissionSummary,total=summary.total,rate=summary.rate,amount=summary.amount;
   $('salesCards').innerHTML='<div class="sales-card"><small>Total vendido</small><strong>R$ '+money(total)+'</strong></div><div class="sales-card"><small>Sua faixa atual</small><strong>'+rate+'%</strong></div><div class="sales-card accent"><small>Sua comissão estimada</small><strong>R$ '+money(amount)+'</strong></div>';
   $('totals').textContent='Comissão sobre o total de vendas registradas: 25% até R$ 1.000,00 e 30% acima de R$ 1.000,00. A faixa alcançada vale sobre todo o total; o cálculo não reinicia mensalmente.';
@@ -47,6 +59,6 @@ $('loginForm').onsubmit=async e=>{e.preventDefault();const button=e.submitter;bu
 $('saleForm').onsubmit=async e=>{e.preventDefault();if(busy)return;const item=data?.inventory.find(i=>i.productKey===$('product').value),qty=Number($('qty').value);if(!item||!Number.isInteger(qty)||qty<1||qty>item.qty){$('message').textContent='Selecione um produto e uma quantidade dentro do seu saldo.';return}if(!confirm('Registrar '+qty+' unidade(s) de '+item.name+' como vendida(s)?'))return;busy=true;e.submitter.disabled=true;try{await request('POST',{action:'sale',productKey:item.productKey,qty,saleId:crypto.randomUUID()});await refresh();$('qty').value=1;$('message').textContent='Venda registrada e estoque atualizado.'}catch(err){$('message').textContent=err.message}finally{busy=false;e.submitter.disabled=false}};
 $('refresh').onclick=async()=>{try{await refresh();$('message').textContent='Dados atualizados.'}catch(e){$('message').textContent=e.message}};
 $('logout').onclick=()=>{sessionStorage.removeItem(key);location.reload()};
-$('download').onclick=()=>{if(!data)return;const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')+'"';const rows=[['Data','Código','Produto','Quantidade','Total R$'],...data.sales.map(s=>[s.date,s.code,s.name,s.qty,money(s.total)])];const blob=new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='minhas-vendas-ornela.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('download').onclick=()=>{if(!data)return;const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')+'"';const rows=[['Data','Código','Produto','Quantidade','Total R$','Situação'],...data.sales.map(s=>[s.date,s.code,s.name,s.qty,money(s.total),s.reversedAt?'Estornada':'Confirmada'])];const blob=new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='minhas-vendas-ornela.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 if(sessionStorage.getItem(key))refresh().catch(e=>$('message').textContent=e.message);
 </script></body></html>

@@ -68,6 +68,20 @@ exports.handler = async event => {
     const originalState = JSON.stringify(state);
     const reseller = state?.resellers?.find(r => r.id === identity.resellerId && r.status !== 'Inativa');
     if (!reseller) return reply(403, { error: 'Acesso desativado.' });
+    if (event.httpMethod === 'POST' && body.action === 'reverse-sale') {
+      const sale = (reseller.sales || []).find(s => s.id === body.saleId);
+      if (!sale) return reply(404, { error: 'Venda não encontrada na sua conta.' });
+      if (sale.reversedAt) return reply(200, { ok: true, alreadyReversed: true });
+      const item = (reseller.inventory || []).find(i => i.productKey === sale.productKey);
+      const qty = Number(sale.qty);
+      if (!item || !Number.isInteger(qty) || qty <= 0) return reply(409, { error: 'Não foi possível identificar o item para devolução. Solicite a conferência da loja.' });
+      item.qty = Number(item.qty || 0) + qty;
+      sale.reversedAt = new Date().toISOString();
+      sale.reversedBy = 'revendedora';
+      const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(state)}::jsonb,updated_at=now() WHERE id=1 AND data=${originalState}::jsonb RETURNING id`;
+      if (!changed.length) return reply(409, { error: 'O estoque mudou. Atualize e tente novamente.' });
+      return reply(200, { ok: true });
+    }
     if (event.httpMethod === 'POST' && body.action === 'sale') {
       const qty = Number(body.qty);
       const saleId = String(body.saleId || '');
@@ -90,7 +104,7 @@ exports.handler = async event => {
     const commission = commissionSummary(reseller.sales);
     return reply(200, { name: reseller.name, commission: commission.rate, commissionSummary: commission,
       inventory: (reseller.inventory || []).map(item => ({ productKey: item.productKey, code: item.code, name: state.products?.find(p => p._ornelaId === item.productKey)?.name || item.name, qty: Number(item.qty || 0), price: item.price })),
-      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total })) });
+      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,reversedAt:s.reversedAt || null })) });
   } catch (error) {
     if (error.code === '23505') return reply(409, { error: 'Este login já está sendo usado.' });
     return reply(500, { error: 'Não foi possível concluir. Tente novamente ou fale com a loja.' });

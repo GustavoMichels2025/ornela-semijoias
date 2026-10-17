@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function setup(conflict = false) {
+function setup(conflict = false, sales = []) {
   const state = { products: [{ _ornelaId: 'p1', name: 'Anel', stock: 8 }], customers: [{ cpf: 'privado' }], resellers: [
-    { id: 'r1', name: 'Primeira', status: 'Ativa', cpf: 'privado', commission: 10, inventory: [{ productKey: 'p1', code: '1010', name: 'Anel', price: '49,00', qty: 3 }], sales: [] },
+    { id: 'r1', name: 'Primeira', status: 'Ativa', cpf: 'privado', commission: 10, inventory: [{ productKey: 'p1', code: '1010', name: 'Anel', price: '49,00', qty: 3 }], sales },
     { id: 'r2', name: 'Segunda', status: 'Ativa', inventory: [{ productKey: 'p1', qty: 20 }], sales: [] }
   ] };
   let written;
@@ -61,4 +61,22 @@ test('Comissão por faixa aplica percentual ao total e respeita centavos', () =>
     assert.equal(result.rate, rate);
     assert.equal(result.amount, amount);
   }
+});
+test('Estorno devolve saldo próprio, preserva histórico e exclui valor da comissão', async () => {
+  const s = setup(false, [{ id: 'sale-1', productKey: 'p1', qty: 2, total: 98 }]);
+  assert.equal((await s.request('POST', { action: 'reverse-sale', saleId: 'sale-1' })).statusCode, 200);
+  assert.equal(s.written.resellers[0].inventory[0].qty, 5);
+  assert.equal(s.written.resellers[1].inventory[0].qty, 20);
+  assert.equal(s.written.products[0].stock, 8);
+  assert(s.written.resellers[0].sales[0].reversedAt);
+  const { commissionSummary } = require('../netlify/functions/utils/commission');
+  assert.equal(commissionSummary(s.written.resellers[0].sales).total, 0);
+  assert.equal(commissionSummary([{ total: 1000 }, { total: 100, reversedAt: '2026-10-17' }]).rate, 25);
+});
+test('Estorno repetido não duplica saldo e venda fora da conta é rejeitada', async () => {
+  const s = setup(false, [{ id: 'sale-1', productKey: 'p1', qty: 2, total: 98, reversedAt: '2026-10-17' }]);
+  assert.equal((await s.request('POST', { action: 'reverse-sale', saleId: 'sale-1' })).statusCode, 200);
+  assert.equal(s.written, undefined);
+  assert.equal((await s.request('POST', { action: 'reverse-sale', saleId: 'outra-conta' })).statusCode, 404);
+  assert.equal(s.written, undefined);
 });

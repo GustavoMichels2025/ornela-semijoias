@@ -3885,7 +3885,7 @@
     }
 
     function resellerSalesValue(reseller) {
-      return (reseller.sales || []).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+      return (reseller.sales || []).filter(sale => !sale.reversedAt).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
     }
 
     function switchResellerTab(tabName) {
@@ -4100,8 +4100,8 @@
             escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price), numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))
           ])) : '<div class="reseller-empty">Sem itens em estoque.</div>'}
           <h4 style="margin:20px 0 8px;">Histórico de vendas</h4>
-          ${sales.length ? panelSheet(["Data", "Código", "Produto", "Quantidade", "Total R$"], sales.map(sale => [
-            escapeHtml(sale.date), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total)
+          ${sales.length ? panelSheet(["Data", "Código", "Produto", "Quantidade", "Total R$", "Situação"], sales.map(sale => [
+            escapeHtml(sale.date), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), sale.reversedAt ? "Estornada" : "Confirmada"
           ])) : '<div class="reseller-empty">Nenhuma venda registrada.</div>'}
         </div>
       `;
