@@ -2524,6 +2524,73 @@
       .order-item-editor button { grid-column: 1 / -1; }
       .order-edit-summary { grid-template-columns: 1fr; }
     }
+    /* Gestão em planilha: as mesmas colunas no cabeçalho e em cada produto. */
+    #bulkList {
+      --sheet-columns: 24px minmax(175px, 2fr) 105px 100px 70px 75px 75px 55px 100px 70px 210px 175px;
+      display: block;
+      overflow: auto;
+      max-height: 72vh;
+      border: 1px solid #ded8ce;
+      border-radius: 8px;
+      background: #fff;
+    }
+    #bulkList .bulk-row, #bulkList .bulk-sheet-header {
+      display: grid;
+      grid-template-columns: var(--sheet-columns);
+      min-width: 1270px;
+      gap: 0;
+      align-items: center;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      border-bottom: 1px solid #e5e0d8;
+      border-radius: 0;
+      background: #fff;
+    }
+    #bulkList .bulk-row:nth-child(odd) { background: #faf8f4; }
+    #bulkList .bulk-row:focus-within { background: #fff3d8; }
+    #bulkList .bulk-sheet-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #eee7dc;
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    #bulkList .bulk-sheet-header > span { padding: 8px 5px; border-right: 1px solid #ded8ce; white-space: nowrap; }
+    #bulkList .bulk-row > * {
+      grid-column: auto;
+      min-width: 0;
+      margin: 0;
+      border-radius: 0;
+    }
+    #bulkList .bulk-row input:not([type="checkbox"]):not([type="file"]), #bulkList .bulk-row select {
+      width: 100%;
+      height: 32px;
+      min-height: 32px;
+      padding: 4px 5px;
+      border: 0;
+      border-right: 1px solid #e5e0d8;
+      border-radius: 0;
+      background: transparent !important;
+      box-shadow: none;
+      font: 11px "Montserrat", Arial, sans-serif;
+      text-overflow: ellipsis;
+    }
+    #bulkList .bulk-row input:focus, #bulkList .bulk-row select:focus { outline: 1px solid var(--gold-dark); outline-offset: -1px; }
+    #bulkList .bulk-check { width: 13px; height: 13px; justify-self: center; }
+    #bulkList .bulk-price-field { display: block; font-size: 0; }
+    #bulkList .product-image-manager { padding: 4px 6px; gap: 4px; flex-wrap: nowrap; border-right: 1px solid #e5e0d8; }
+    #bulkList .product-image-thumb, #bulkList .product-image-add { width: 24px; height: 24px; flex-basis: 24px; border-radius: 4px; }
+    #bulkList .product-image-thumb img { border-radius: 3px; }
+    #bulkList .product-image-add { font-size: 17px; }
+    #bulkList .product-image-remove { width: 14px; height: 14px; line-height: 14px; font-size: 10px; top: -3px; right: -3px; }
+    #bulkList .product-image-count { font-size: 9px; }
+    #bulkList .product-images-save { padding: 5px; border-radius: 4px; font-size: 9px; }
+    #bulkList .product-share-field { gap: 3px; padding-right: 4px; }
+    #bulkList .product-share-field button { padding: 5px; border-radius: 4px; font-size: 9px; }
+    #bulkList .product-share-field input { font-size: 10px; }
   </style>
 </head>
 
@@ -4487,6 +4554,11 @@
       if (!bulkList) return;
 
       bulkList.innerHTML = "";
+      const header = document.createElement("div");
+      header.className = "bulk-sheet-header";
+      header.innerHTML = ["✓", "Produto", "Código", "Categoria", "Custo R$", "Preço R$", "Promoção R$", "Estoque", "Destaque", "Visível", "Fotos", "Link do item"]
+        .map(label => `<span>${label}</span>`).join("");
+      bulkList.appendChild(header);
       const adminSearch = normalizeCode(adminProductSearch?.value || "");
       const adminFilter = adminProductFilter?.value || "all";
       updateAdminProductFilterCounts();
