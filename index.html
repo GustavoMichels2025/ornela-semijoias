@@ -2761,6 +2761,11 @@
     .manual-order-dialog td,.manual-order-dialog th { text-align:left; padding:8px; border:1px solid #e5e0d8; }
     .manual-order-dialog th { background:#eee7dc; }
     @media(max-width:600px){ .manual-order-fields { grid-template-columns:1fr; } .manual-order-dialog .manual-line { grid-template-columns:1fr 80px; } .manual-order-dialog .manual-line button { grid-column:1/-1; } .manual-order-dialog input,.manual-order-dialog select { font-size:16px; } }
+    /* Faixa de apresentação compacta, com altura definida pelo texto. */
+    .hero .hero-card { min-height: 0; height: auto; padding: 18px 22px; gap: 8px; border-radius: 18px; }
+    .hero .eyebrow { min-height: 0; margin-bottom: 0; padding: 4px 12px; }
+    .hero h2 { margin-bottom: 0; line-height: 1.1; }
+    .hero p { margin-bottom: 0; line-height: 1.45; }
   </style>
 </head>
 
@@ -2789,9 +2794,6 @@
         <div class="eyebrow" id="heroEyebrow">Escolhas da Ornela</div>
         <h2 id="heroTitle">Feita para celebrar você</h2>
         <p id="heroText">Explore a vitrine, monte sua sacola com calma e envie seu pedido direto para a Ornela pelo WhatsApp.</p>
-        <div>
-          <a class="btn btn-primary" href="#catalogo">Ver a vitrine</a>
-        </div>
       </div>
     </section>
 
