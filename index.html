@@ -2783,12 +2783,20 @@
 
       <div class="nav-actions">
         <a class="btn btn-light" id="instagramLink" href="https://www.instagram.com/ornelasemijoias" target="_blank">Instagram</a>
-        <a class="btn btn-light" id="spotifyLink" href="https://open.spotify.com/playlist/6MqVd2mIw55n6Lj4WMHGob" target="_blank" rel="noopener noreferrer" aria-label="Ouvir a playlist da Ornela no Spotify (abre em nova aba)" title="Ouvir a playlist da Ornela" style="padding:10px;min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center">
+        <button class="btn btn-light" type="button" id="spotifyLink" onclick="toggleOrnelaMusic()" aria-controls="ornelaMusic" aria-expanded="false" aria-label="Abrir player da playlist da Ornela" title="Ouvir música nesta página" style="padding:10px;min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg>
-        </a>
+        </button>
         <button class="btn btn-light" type="button" id="toggleAdmin">Acesso administrativo</button>
       </div>
     </nav>
+    <section id="ornelaMusic" hidden aria-label="Playlist da Ornela" style="width:min(480px,calc(100% - 32px));margin:0 auto 12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;font-size:12px">
+        <span>Playlist Ornela · Toque em Play para ouvir</span>
+        <button type="button" class="btn btn-light" onclick="toggleOrnelaMusic(false)" style="padding:5px 10px;font-size:12px">Fechar e desligar</button>
+      </div>
+      <div id="ornelaMusicPlayer"></div>
+      <small style="font-size:10px;color:var(--muted)">Player fornecido pelo Spotify. Ao abrir, sua conexão é compartilhada com esse serviço.</small>
+    </section>
   </header>
 
   <main>
@@ -4536,6 +4544,29 @@
         if (Math.abs(deltaX) < 38 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
         setProductCarousel(box, Number(box.dataset.carouselIndex || 0) + (deltaX < 0 ? 1 : -1));
       }, { passive: true });
+    }
+
+    function toggleOrnelaMusic(force) {
+      const panel = document.getElementById('ornelaMusic');
+      const button = document.getElementById('spotifyLink');
+      const host = document.getElementById('ornelaMusicPlayer');
+      const open = typeof force === 'boolean' ? force : panel.hidden;
+      if (open && !host.firstChild) {
+        const frame = document.createElement('iframe');
+        frame.src = 'https://open.spotify.com/embed/playlist/6MqVd2mIw55n6Lj4WMHGob?utm_source=generator';
+        frame.title = 'Playlist da Ornela no Spotify';
+        frame.width = '100%';
+        frame.height = '152';
+        frame.style.cssText = 'border:0;border-radius:12px;display:block';
+        frame.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
+        frame.allowFullscreen = true;
+        host.appendChild(frame);
+      }
+      if (!open) host.replaceChildren();
+      panel.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+      button.setAttribute('aria-label', open ? 'Fechar player e desligar música' : 'Abrir player da playlist da Ornela');
+      button.title = open ? 'Fechar e desligar música' : 'Ouvir música nesta página';
     }
 
     function viewerImages() {
