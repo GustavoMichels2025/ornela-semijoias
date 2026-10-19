@@ -1781,29 +1781,33 @@
 
     .dashboard-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(7, minmax(130px, 1fr));
+      gap: 8px;
       margin: 18px 0;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      overscroll-behavior-x: contain;
     }
 
     .dashboard-card {
       border: 1px solid rgba(201,162,77,.18);
-      border-radius: 22px;
+      border-radius: 12px;
       background: #fffaf2;
-      padding: 18px;
+      padding: 12px;
     }
 
     .dashboard-card span {
       display: block;
       color: var(--muted);
-      font-size: 13px;
+      font-size: 11px;
+      white-space: nowrap;
       margin-bottom: 8px;
     }
 
     .dashboard-card strong {
       display: block;
       font-family: "Montserrat", Arial, Helvetica, sans-serif;
-      font-size: 28px;
+      font-size: 24px;
     }
 
     .admin-box { box-shadow: 0 14px 44px rgba(50, 39, 29, .08); }
@@ -2870,7 +2874,7 @@
       <div class="admin-box active" data-admin-panel="dashboard">
         <h3>Dashboard</h3>
         <p>Visão rápida da operação da loja antes de entrar nos detalhes.</p>
-        <div class="dashboard-grid">
+        <div class="dashboard-grid" tabindex="0" role="region" aria-label="Indicadores da loja; deslize para os lados em telas menores">
           <div class="dashboard-card">
             <span>Produtos cadastrados</span>
             <strong id="dashTotalProducts">0</strong>
