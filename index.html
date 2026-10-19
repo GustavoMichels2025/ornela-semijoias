@@ -2748,6 +2748,18 @@
     body.admin-mode #catalogPagination { display:none; }
     #bulkList .bulk-description { width:100%; height:32px; min-height:32px; padding:7px; border:0; border-right:1px solid #e5e0d8; border-radius:0; background:transparent; font:11px/1.5 "Montserrat",Arial,sans-serif; color:var(--ink); resize:vertical; }
     #bulkList .bulk-description:focus { height:120px; outline:1px solid var(--gold-dark); outline-offset:-1px; background:#fffdf7; }
+    .manual-order-dialog { margin:auto; width:min(900px,95vw); max-height:90vh; overflow:auto; padding:22px; border:1px solid #ded8ce; border-radius:12px; color:var(--ink); font:13px "Montserrat",Arial,sans-serif; }
+    .manual-order-dialog::backdrop { background:rgba(25,20,15,.55); }
+    .manual-order-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0; }
+    .manual-order-fields label { display:grid; gap:5px; font-size:11px; }
+    .manual-order-dialog input,.manual-order-dialog select,.manual-order-dialog textarea { width:100%; min-width:0; padding:9px; border:1px solid #d9cbb6; border-radius:5px; font:inherit; }
+    .manual-order-dialog .manual-line { display:grid; grid-template-columns:1fr 90px 130px; gap:10px; align-items:end; }
+    .manual-order-dialog .manual-line label { display:grid; gap:5px; }
+    .manual-order-dialog .manual-wide { grid-column:1/-1; }
+    .manual-order-dialog table { width:100%; border-collapse:collapse; font-size:11px; margin:14px 0; }
+    .manual-order-dialog td,.manual-order-dialog th { text-align:left; padding:8px; border:1px solid #e5e0d8; }
+    .manual-order-dialog th { background:#eee7dc; }
+    @media(max-width:600px){ .manual-order-fields { grid-template-columns:1fr; } .manual-order-dialog .manual-line { grid-template-columns:1fr 80px; } .manual-order-dialog .manual-line button { grid-column:1/-1; } .manual-order-dialog input,.manual-order-dialog select { font-size:16px; } }
   </style>
 </head>
 
@@ -3009,13 +3021,14 @@
       </div>
 
       <div class="admin-box" data-admin-panel="orders">
-        <h3>Pedidos da sacola</h3>
+        <h3>Gestão de pedidos</h3>
         <p>
-          Quando a cliente montar uma sacola e clicar para enviar no WhatsApp, um código de pedido será gerado. Use esse código para localizar aqui quais peças ela escolheu.
+          Consulte pedidos da vitrine ou crie um pedido recebido por ligação, WhatsApp ou presencialmente. A baixa do estoque acontece ao finalizar a venda.
         </p>
 
         <div class="xml-actions">
           <input type="text" id="orderSearch" placeholder="Buscar pedido, código ou nome da cliente">
+          <button class="btn btn-primary" type="button" id="createManualOrder">+ Novo pedido</button>
           <button class="btn btn-primary" type="button" id="refreshOrders">Atualizar pedidos</button>
           <button class="btn btn-light" type="button" id="clearOrders">Limpar histórico local</button>
         </div>
@@ -5578,6 +5591,7 @@
             <span class="order-detail-label">Detalhes ↕</span>
           </summary>
           <div class="order-sheet-details">
+          <small>Origem: ${escapeHtml(order.source || 'Vitrine')}${order.notes ? ` • Observações: ${escapeHtml(order.notes)}` : ''}</small>
           <small>Edite os itens e clique em Salvar alterações.</small>
           <div class="order-customer-link">
             <label>
@@ -5728,6 +5742,68 @@
       }
     }
 
+    function findOrderItemProduct(item) {
+      if (item.productKey) return findProductByKey(item.productKey);
+      const matches = products.filter(product => String(product.code || '').trim() === String(item.code || '').trim());
+      return matches.length === 1 ? matches[0] : null;
+    }
+
+    function openManualOrder() {
+      if (!isAdminAuthenticated()) { openAdminLogin(); return; }
+      const draft = { code: generateOrderCode(), date: new Date().toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'}), items: [], status:'Aberto', source:'Ligação', discountPercent:0 };
+      const dialog = document.createElement('dialog');
+      dialog.className = 'manual-order-dialog';
+      dialog.innerHTML = `<h3>Novo pedido</h3><p>Inclua as peças e salve. O estoque será baixado somente em “Finalizar venda”.</p><form>
+        <div class="manual-order-fields"><label>Cliente cadastrada (código, nome ou CPF)<input name="customer" list="manualCustomerOptions" autocomplete="off" placeholder="Opcional"><datalist id="manualCustomerOptions">${customers.map(c=>`<option value="${escapeHtml(c.code)}">${escapeHtml([c.name,c.cpf].filter(Boolean).join(' • '))}</option>`).join('')}</datalist></label><label>Nome da cliente<input name="customerName" placeholder="Para cliente sem cadastro"></label><label>Canal<select name="source"><option>Ligação</option><option>WhatsApp</option><option>Presencial</option><option>Outros</option></select></label><label>Desconto (%)<input name="discount" type="number" min="0" max="100" step="0.01" value="0"></label></div>
+        <label>Buscar peça por código ou nome<input name="search" type="search" autocomplete="off"></label><div class="manual-line"><label>Produto<select name="product"><option value="">Selecione uma peça</option></select></label><label>Quantidade<input name="qty" type="number" min="1" step="1" value="1"></label><button type="button" class="btn btn-light" data-add>Adicionar item</button></div>
+        <div data-items style="overflow:auto"></div><p data-total></p><label>Observações<textarea name="notes" rows="2" placeholder="Informações do pedido recebido"></textarea></label><p role="status" aria-live="polite"></p><div class="xml-actions"><button type="submit" class="btn btn-primary">Salvar pedido</button><button type="button" class="btn btn-light" data-cancel>Cancelar</button></div></form>`;
+      document.body.appendChild(dialog); dialog.showModal();
+      const form=dialog.querySelector('form'), fields=form.elements, status=dialog.querySelector('[role="status"]');
+      let saving=false;
+      const close=()=>{if(saving)return;dialog.close();dialog.remove();};
+      dialog.querySelector('[data-cancel]').onclick=close;
+      dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+      function refreshOptions(){
+        const selected=fields.product.value,terms=normalizeCatalogSearch(fields.search.value).split(/\s+/).filter(Boolean);
+        fields.product.innerHTML='<option value="">Selecione uma peça</option>'+products.filter(p=>Number(p.stock)>0&&terms.every(term=>normalizeCatalogSearch([p.code,p.name].join(' ')).includes(term))).map(p=>`<option value="${escapeHtml(p._ornelaId)}">${escapeHtml(p.code)} • ${escapeHtml(p.name)} • R$ ${escapeHtml(sellingPrice(p))} • saldo ${Number(p.stock)}</option>`).join('');
+        if(Array.from(fields.product.options).some(o=>o.value===selected))fields.product.value=selected;
+        const exact=products.find(p=>Number(p.stock)>0&&normalizeCode(p.code)===normalizeCode(fields.search.value)&&fields.search.value.trim());
+        if(exact)fields.product.value=exact._ornelaId;
+      }
+      function renderDraft(){
+        draft.discountPercent=Number(fields.discount.value)||0;recalcOrderTotal(draft);
+        dialog.querySelector('[data-items]').innerHTML=draft.items.length?`<table><thead><tr><th>Código</th><th>Produto</th><th>Qtd.</th><th>Unitário R$</th><th>Ações</th></tr></thead><tbody>${draft.items.map((i,n)=>`<tr><td>${escapeHtml(i.code)}</td><td>${escapeHtml(i.name)}</td><td>${i.qty}</td><td>${escapeHtml(i.price)}</td><td><button type="button" data-remove="${n}">Remover</button></td></tr>`).join('')}</tbody></table>`:'<p>Nenhum item incluído.</p>';
+        dialog.querySelector('[data-total]').textContent=`Subtotal: R$ ${draft.subtotal} • Desconto: R$ ${draft.discountValue} • Total: R$ ${draft.total}`;
+      }
+      fields.search.addEventListener('input',refreshOptions);
+      fields.search.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();refreshOptions();fields.qty.focus();}});
+      fields.discount.addEventListener('input',renderDraft);
+      fields.customer.addEventListener('change',()=>{const c=customers.find(c=>c.code===normalizeCustomerCode(fields.customer.value));if(c)fields.customerName.value=c.name;});
+      dialog.querySelector('[data-add]').onclick=()=>{
+        const product=findProductByKey(fields.product.value),qty=Number(fields.qty.value),existing=draft.items.find(i=>i.productKey===product?._ornelaId);
+        if(!product||!Number.isInteger(qty)||qty<1||qty+Number(existing?.qty||0)>Number(product.stock||0)){status.textContent='Selecione uma peça e informe uma quantidade dentro do saldo disponível.';return;}
+        if(existing)existing.qty+=qty;else draft.items.push({productKey:product._ornelaId,productIndex:products.indexOf(product),code:product.code||'',name:product.name,price:sellingPrice(product),category:product.category,qty});
+        fields.qty.value='1';status.textContent='';renderDraft();
+      };
+      dialog.querySelector('[data-items]').onclick=event=>{const button=event.target.closest('[data-remove]');if(button&&!saving){draft.items.splice(Number(button.dataset.remove),1);renderDraft();}};
+      form.onsubmit=async event=>{
+        event.preventDefault();if(saving)return;
+        if(!draft.items.length){status.textContent='Adicione pelo menos um item.';return;}
+        const customer=customers.find(c=>c.code===normalizeCustomerCode(fields.customer.value));
+        if(fields.customer.value.trim()&&!customer){status.textContent='Selecione uma cliente da lista ou deixe o código vazio e informe o nome.';return;}
+        if(draft.items.some(i=>!findOrderItemProduct(i)||Number(findOrderItemProduct(i).stock)<i.qty)){status.textContent='O estoque mudou. Confira as quantidades antes de salvar.';return;}
+        draft.customerCode=customer?.code||'';draft.customerName=customer?.name||fields.customerName.value.trim();draft.customerCpf=customer?.cpf||'';draft.source=fields.source.value;draft.notes=fields.notes.value.trim();renderDraft();
+        const existing=ordersHistory.findIndex(o=>o.code===draft.code);if(existing<0)ordersHistory.unshift(draft);else ordersHistory[existing]=draft;
+        saving=true;form.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=true);status.textContent='Salvando pedido...';
+        try{
+          await saveAppStateNow();saving=false;close();orderSearch.value='';renderOrdersHistory();
+          const card=Array.from(ordersList.querySelectorAll('[data-order-code]')).find(e=>e.dataset.orderCode===draft.code);if(card)card.open=true;
+          ordersRefreshStatus.textContent=`Pedido ${draft.code} criado e salvo. Use “Finalizar venda” nos detalhes para baixar o estoque.`;
+        }catch(error){status.textContent=error.message;saving=false;form.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=false);}
+      };
+      refreshOptions();renderDraft();
+    }
+
     function addItemToOrder(code) {
       const order = ordersHistory.find(item => item.code === code);
       if (!order) return;
@@ -5750,7 +5826,7 @@
 
       const product = products[productIndex];
       const currentInOrder = order.items
-        .filter(item => item.productIndex === productIndex)
+        .filter(item => findOrderItemProduct(item)?._ornelaId === product._ornelaId)
         .reduce((sum, item) => sum + item.qty, 0);
 
       if (currentInOrder >= Number(product.stock ?? 0)) {
@@ -5758,13 +5834,14 @@
         return;
       }
 
-      const existing = order.items.find(item => item.productIndex === productIndex);
+      const existing = order.items.find(item => findOrderItemProduct(item)?._ornelaId === product._ornelaId);
 
       if (existing) {
         existing.qty += 1;
       } else {
         order.items.push({
           productIndex,
+          productKey: product._ornelaId,
           qty: 1,
           name: product.name,
           code: product.code || "sem código",
@@ -5779,7 +5856,7 @@
       alert("Item adicionado ao pedido.");
     }
 
-    function finalizeOrder(code) {
+    async function finalizeOrder(code) {
       const order = ordersHistory.find(item => item.code === code);
       if (!order) return;
 
@@ -5788,9 +5865,13 @@
         return;
       }
 
+      if (!order.items.length) { alert('Inclua ao menos um item antes de finalizar.'); return; }
+      const quantities = new Map();
       const insufficient = order.items.filter(item => {
-        const product = products[item.productIndex];
-        return !product || Number(product.stock ?? 0) < item.qty;
+        const product = findOrderItemProduct(item),qty=Number(item.qty);
+        if (!product || !Number.isInteger(qty) || qty<=0) return true;
+        quantities.set(product._ornelaId, (quantities.get(product._ornelaId)||0)+qty);
+        return Number(product.stock ?? 0) < quantities.get(product._ornelaId);
       });
 
       if (insufficient.length) {
@@ -5800,9 +5881,10 @@
 
       const ok = confirm(`Finalizar venda do pedido ${code} e baixar estoque?`);
       if (!ok) return;
+      const stockBefore = new Map(order.items.map(item => { const p=findOrderItemProduct(item); return [p._ornelaId,{stock:p.stock,hidden:p.hidden}]; }));
 
       order.items.forEach(item => {
-        const product = products[item.productIndex];
+        const product = findOrderItemProduct(item);
         product.stock = Math.max(0, Number(product.stock ?? 0) - item.qty);
 
         if (product.stock <= 0) {
@@ -5814,8 +5896,13 @@
       renderCategories();
       renderProducts();
       renderOrdersHistory();
-      saveAppState();
-      alert("Venda finalizada e estoque atualizado.");
+      try { await saveAppStateNow(); alert("Venda finalizada e estoque atualizado no banco."); }
+      catch(error) {
+        stockBefore.forEach((before,id)=>{const p=findProductByKey(id);if(p){p.stock=before.stock;p.hidden=before.hidden;}});
+        const currentOrder=ordersHistory.find(o=>o.code===code);if(currentOrder)currentOrder.status='Aberto';
+        renderCategories();renderProducts();renderOrdersHistory();
+        alert(error.message || "Não foi possível confirmar a finalização no banco.");
+      }
     }
 
     function askOrderDeletionQuestion(message) {
@@ -6730,6 +6817,7 @@
     });
 
     orderSearch.addEventListener("input", renderOrdersHistory);
+    document.getElementById('createManualOrder').addEventListener('click', openManualOrder);
     refreshOrdersButton.addEventListener("click", refreshOrdersHistory);
 
     document.getElementById("clearOrders").addEventListener("click", () => {
