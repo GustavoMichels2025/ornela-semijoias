@@ -4974,7 +4974,10 @@
           <div class="product-image-manager" title="Imagens do produto: máximo de 3">
             ${productImages.map((image, imageIndex) => `
               <div class="product-image-thumb">
-                <img src="${escapeHtml(image)}" alt="Imagem ${imageIndex + 1} de ${escapeHtml(product.name)}" loading="lazy">
+                <img src="${escapeHtml(image)}" alt="Imagem ${imageIndex + 1} de ${escapeHtml(product.name)}" loading="lazy"
+                  role="button" tabindex="0" style="cursor:zoom-in" title="Clique para ampliar a foto"
+                  onclick="openProductImageViewer(productIndexFromRow(this), ${imageIndex}, event)"
+                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProductImageViewer(productIndexFromRow(this), ${imageIndex}, event)}">
                 <button class="product-image-remove" type="button" title="Remover imagem"
                   onclick="removeProductImage(productIndexFromRow(this), ${imageIndex})">×</button>
               </div>
