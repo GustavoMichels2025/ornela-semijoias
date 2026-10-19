@@ -4164,6 +4164,8 @@
             <div class="reseller-kpi"><span>Saldo de peças</span><strong>${resellerStockTotal(reseller)}</strong></div>
             <div class="reseller-kpi"><span>Valor em mãos</span><strong>R$ ${numberToBR(resellerStockValue(reseller))}</strong></div>
             <div class="reseller-kpi"><span>Total vendido</span><strong>R$ ${numberToBR(salesValue)}</strong></div>
+            <div class="reseller-kpi"><span>Percentual atual da comissão</span><strong>${commissionRate}%</strong></div>
+            <div class="reseller-kpi"><span>Comissão atual</span><strong>R$ ${numberToBR(commission)}</strong></div>
           </div>
           <p><strong>Comissão por faixa:</strong> 25% até R$ 1.000,00; 30% acima desse total. <strong>Faixa atual:</strong> ${commissionRate}% • <strong>Comissão estimada:</strong> R$ ${numberToBR(commission)}</p>
           <h4 style="margin:20px 0 8px;">Estoque atual</h4>
