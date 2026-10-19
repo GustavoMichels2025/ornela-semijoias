@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="/state-merge.js"></script>
+  <script src="/reseller-cycles.js"></script>
 
   <style>
     :root {
@@ -2916,6 +2917,7 @@
           <button class="reseller-tab active" type="button" data-reseller-tab="register">Cadastro</button>
           <button class="reseller-tab" type="button" data-reseller-tab="stock">Estoque e vendas</button>
           <button class="reseller-tab" type="button" data-reseller-tab="reports">Relatórios</button>
+          <button class="reseller-tab" type="button" data-reseller-tab="cycles">Ciclos</button>
         </div>
 
         <div class="reseller-panel active" data-reseller-panel="register">
@@ -2980,6 +2982,14 @@
           </div>
 
           <div class="reseller-cards" id="resellerStockList"></div>
+        </div>
+
+        <div class="reseller-panel" data-reseller-panel="cycles">
+          <h4>Ciclos de consignação</h4><p>Compare envios e resultados por período. Encerrar um ciclo registra a posição daquele momento, sem devolver as peças à vitrine. O saldo que permanece com a revendedora será o saldo inicial do próximo ciclo.</p>
+          <div class="reseller-operation" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+            <select id="cycleReseller" aria-label="Revendedora do ciclo"></select><select id="resellerCycle" aria-label="Ciclo para consultar"></select>
+            <button class="btn btn-primary" type="button" id="startResellerCycle">Iniciar ciclo</button><button class="btn btn-light" type="button" id="closeResellerCycle">Encerrar ciclo</button><button class="btn btn-light" type="button" id="exportResellerCycle">Baixar relatório CSV</button>
+          </div><p id="cycleStatus" role="status" class="xml-status"></p><div id="cycleReport"></div>
         </div>
 
         <div class="reseller-panel" data-reseller-panel="reports">
@@ -4168,6 +4178,54 @@
       `;
     }
 
+    function renderResellerCycles() {
+      const resellerSelect=document.getElementById('cycleReseller'),cycleSelect=document.getElementById('resellerCycle');
+      const selectedReseller=resellerSelect.value,selectedCycle=cycleSelect.value;
+      resellerSelect.innerHTML=resellers.map(r=>`<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`).join('');
+      if(resellers.some(r=>r.id===selectedReseller))resellerSelect.value=selectedReseller;
+      const reseller=resellers.find(r=>r.id===resellerSelect.value),cycles=reseller?.cycles||[];
+      cycleSelect.innerHTML=cycles.slice().reverse().map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)} • ${c.status==='open'?'Aberto':'Encerrado'}</option>`).join('');
+      if(cycles.some(c=>c.id===selectedCycle))cycleSelect.value=selectedCycle;
+      const cycle=cycles.find(c=>c.id===cycleSelect.value),container=document.getElementById('cycleReport');
+      document.getElementById('startResellerCycle').disabled=!reseller||Boolean(OrnelaCycles.active(reseller));
+      document.getElementById('closeResellerCycle').disabled=!cycle||cycle.status!=='open';
+      document.getElementById('exportResellerCycle').disabled=!cycle;
+      if(!cycle){container.innerHTML='<p>Nenhum ciclo registrado. Inicie o primeiro para acompanhar o saldo atual e as próximas movimentações. As vendas anteriores permanecem no histórico geral.</p>';return;}
+      const result=OrnelaCycles.report(reseller,cycle),t=result.totals;
+      const date=value=>new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+      container.innerHTML=`<h4>${escapeHtml(cycle.name)} — ${cycle.status==='open'?'Em andamento':'Relatório de fechamento'}</h4><p>Início: ${escapeHtml(date(cycle.startedAt))}${cycle.closedAt?' • Encerramento: '+escapeHtml(date(cycle.closedAt)):''}</p>`+
+        panelSheet(['Saldo inicial','Novas enviadas','Vendidas','Devolvidas','Sobraram','Ajustes de entrada','Venda / disponíveis','Vendas R$'],[[t.opening,t.sent,t.sold,t.returned,t.remaining,t.adjustments,t.conversion+'%',numberToBR(t.value)]])+
+        '<p>“Saldo inicial” são as peças que já estavam com ela ao iniciar. “Sobraram” mostra o saldo '+(cycle.status==='closed'?'na data do encerramento':'atual')+'. As datas e os nomes são preservados no fechamento.</p>'+
+        panelSheet(['Código','Produto','Inicial','Enviadas','Ajustes','Vendidas','Devolvidas','Sobraram','Giro %','Vendas R$','Resultado'],result.rows.map(r=>[escapeHtml(r.code),escapeHtml(r.name),r.opening,r.sent,r.adjustments,r.sold,r.returned,r.remaining,r.conversion+'%',numberToBR(r.value),r.sold===0?'Sem vendas':r.sold===r.available?'Vendeu todas':'Venda parcial']))+
+        (result.lateReversals.length?'<p><strong>Atenção: houve estornos após o fechamento.</strong> O relatório acima preserva a posição original. Peças devolvidas após o encerramento entram como ajuste no ciclo aberto, ou como saldo inicial do próximo.</p>'+panelSheet(['Produto','Código','Quantidade estornada','Valor R$'],result.lateReversals.map(s=>[escapeHtml(s.name),escapeHtml(s.code),s.qty,numberToBR(s.total)])):'')+
+        `<details style="margin-top:16px"><summary>Histórico de envios e devoluções deste ciclo</summary>${panelSheet(['Data','Movimento','Código','Produto','Quantidade'],(cycle.movements||[]).map(m=>[escapeHtml(date(m.date)),m.type==='sent'?'Envio':m.type==='return'?'Devolução':'Ajuste de estorno',escapeHtml(m.code),escapeHtml(m.name),m.qty]))}</details>`;
+    }
+
+    async function startResellerCycle() {
+      const reseller=resellers.find(r=>r.id===document.getElementById('cycleReseller').value);
+      if(!reseller||OrnelaCycles.active(reseller))return;
+      const name=prompt('Nome do ciclo:',`Ciclo ${String((reseller.cycles||[]).length+1).padStart(3,'0')}`);if(!name?.trim())return;
+      const cycle=OrnelaCycles.ensure(reseller,makeId('ciclo'),new Date().toISOString(),name.trim());
+      try{await saveAppStateNow();renderResellerCycles();document.getElementById('resellerCycle').value=cycle.id;renderResellerCycles();document.getElementById('cycleStatus').textContent='Ciclo iniciado com o saldo atual. As vendas anteriores continuam no histórico geral.';}catch(error){document.getElementById('cycleStatus').textContent=error.message;}
+    }
+
+    async function closeResellerCycle() {
+      const reseller=resellers.find(r=>r.id===document.getElementById('cycleReseller').value),cycle=reseller?.cycles?.find(c=>c.id===document.getElementById('resellerCycle').value);
+      if(!cycle||cycle.status!=='open')return;
+      if(!confirm(`Encerrar ${cycle.name}? O relatório será preservado e o saldo permanecerá com a revendedora. As próximas movimentações iniciarão um novo ciclo.`))return;
+      OrnelaCycles.close(reseller,cycle);
+      try{await saveAppStateNow();renderResellerCycles();document.getElementById('cycleStatus').textContent='Ciclo encerrado. O estoque físico não foi alterado.';}catch(error){document.getElementById('cycleStatus').textContent=error.message;}
+    }
+
+    function exportResellerCycle() {
+      const reseller=resellers.find(r=>r.id===document.getElementById('cycleReseller').value),cycle=reseller?.cycles?.find(c=>c.id===document.getElementById('resellerCycle').value);if(!cycle)return;
+      const result=OrnelaCycles.report(reseller,cycle);
+      const rows=[['Revendedora',reseller.name,'Ciclo',cycle.name],['Início',cycle.startedAt,'Fim',cycle.closedAt||'Aberto'],['Código','Produto','Saldo inicial','Enviadas','Ajustes','Vendidas','Devolvidas','Sobraram','Giro %','Vendas R$'],...result.rows.map(r=>[r.code,r.name,r.opening,r.sent,r.adjustments,r.sold,r.returned,r.remaining,r.conversion,numberToBR(r.value)])];
+      if(result.lateReversals.length)rows.push([],['Estornos após fechamento: valores não incluídos na posição original'],['Código','Produto','Quantidade','Valor R$'],...result.lateReversals.map(s=>[s.code,s.name,s.qty,numberToBR(s.total)]));
+      const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')+'"';
+      const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='ciclo-ornela.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }
+
     function renderResellers() {
       ensureProductIds();
       syncResellerInventoryWithCatalog();
@@ -4175,6 +4233,7 @@
       renderResellerRegistry();
       renderResellerStock();
       renderResellerReport();
+      renderResellerCycles();
       updateDashboard();
       saveAppState();
     }
@@ -4239,6 +4298,8 @@
         return;
       }
 
+      const cycle=OrnelaCycles.ensure(reseller,makeId('ciclo'));
+      OrnelaCycles.movement(cycle,makeId('mov'),'return',item,qty);
       item.qty -= qty;
       product.stock = Number(product.stock || 0) + qty;
       if (product.stock > 0) product.hidden = false;
@@ -7221,6 +7282,11 @@
     });
 
     transferProductCodeSearch.addEventListener("input", renderTransferProductOptions);
+    document.getElementById('cycleReseller').addEventListener('change',()=>{document.getElementById('resellerCycle').value='';renderResellerCycles();});
+    document.getElementById('resellerCycle').addEventListener('change',renderResellerCycles);
+    document.getElementById('startResellerCycle').addEventListener('click',startResellerCycle);
+    document.getElementById('closeResellerCycle').addEventListener('click',closeResellerCycle);
+    document.getElementById('exportResellerCycle').addEventListener('click',exportResellerCycle);
     transferProductCodeSearch.addEventListener("keydown", event => {
       if (event.key !== "Enter") return;
       event.preventDefault();
@@ -7271,6 +7337,8 @@
       }
 
       reseller.inventory = reseller.inventory || [];
+      const cycle=OrnelaCycles.ensure(reseller,makeId('ciclo'));
+      OrnelaCycles.movement(cycle,makeId('mov'),'sent',{productKey:product._ornelaId,name:product.name,code:product.code,price:product.price},qty);
       const existingItem = reseller.inventory.find(item => item.productKey === product._ornelaId);
       const currentDescription = currentProductDescription(product);
 
@@ -7324,10 +7392,12 @@
         return;
       }
 
+      const cycle=OrnelaCycles.ensure(reseller,makeId('ciclo'));
       item.qty -= qty;
       reseller.sales = reseller.sales || [];
       reseller.sales.unshift({
         id: makeId("venda"),
+        cycleId: cycle.id,
         date: new Date().toLocaleString("pt-BR"),
         productKey: item.productKey,
         name: item.name,

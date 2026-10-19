@@ -3,6 +3,7 @@ const { getSql } = require('./utils/db');
 const { requireAdmin } = require('./utils/auth');
 const seedState = require('./seed-state.json');
 const { merge, equal } = require('../../state-merge');
+const cycles = require('../../reseller-cycles');
 
 const emptyState = { products: [], storeConfig: null, ordersHistory: [], customers: [], resellers: [], cart: [], currentOrderId: '', orderCounter: 1 };
 function sanitizeState(data) {
@@ -58,6 +59,15 @@ exports.handler = async (event) => {
       ...payload.ordersHistory,
       ...currentOrders.filter(order => !payloadCodes.has(order.code))
     ];
+    for(const reseller of payload.resellers){
+      const open=(reseller.cycles||[]).filter(c=>c.status==='open');
+      if(open.length>1)return json(409,{error:'Há dois ciclos abertos para a mesma revendedora. Atualize o painel e selecione o ciclo atual.'});
+      const stored=current.data.resellers?.find(r=>r.id===reseller.id);
+      for(const cycle of reseller.cycles||[]){
+        const previous=stored?.cycles?.find(c=>c.id===cycle.id);
+        if(cycle.status==='closed'&&previous?.status!=='closed')cycle.closing=cycles.report(reseller,cycle,true);
+      }
+    }
     if (equal(payload, current.data)) return json(200, { ...payload, revision: current.updated_at });
     const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(payload)}::jsonb,updated_at=now() WHERE id=1 AND data=${JSON.stringify(current.data)}::jsonb RETURNING updated_at::text AS updated_at`;
     if (!changed.length) continue;

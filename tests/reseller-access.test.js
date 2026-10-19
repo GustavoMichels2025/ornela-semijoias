@@ -23,6 +23,7 @@ function setup(conflict = false, sales = []) {
   const context = { exports: {}, Buffer, console, require: path => {
     if (path === './utils/db') return { getSql: () => sql };
     if (path === './utils/commission') return require('../netlify/functions/utils/commission');
+    if (path === '../../reseller-cycles') return require('../reseller-cycles');
     if (path === './utils/auth') return { requireAdmin: () => false, verify: token => token === 'valid' ? { role: 'reseller', resellerId: 'r1', version: 1 } : null };
     if (path === './utils/response') return { json: (statusCode, data) => ({ statusCode, body: JSON.stringify(data) }) };
     return require(path);

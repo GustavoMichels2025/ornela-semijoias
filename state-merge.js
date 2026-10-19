@@ -10,7 +10,7 @@
       if(Array.isArray(l)&&Array.isArray(r)&&(Array.isArray(b)||b===undefined)){
         const original=b||[],name=path[path.length-1];
         if(['xmlImportHistory','deletedOrderCodes'].includes(name))return [...new Set([...r,...l])];
-        const key={products:'_ornelaId',customers:'id',resellers:'id',ordersHistory:'code',inventory:'productKey',sales:'id'}[name];
+        const key={products:'_ornelaId',customers:'id',resellers:'id',ordersHistory:'code',inventory:'productKey',sales:'id',cycles:'id',movements:'id',opening:'productKey'}[name];
         if(key&&[original,l,r].every(list=>list.every(item=>item&&item[key])&&new Set(list.map(item=>item[key])).size===list.length)){
           const bm=new Map(original.map(item=>[item[key],item])),lm=new Map(l.map(item=>[item[key],item])),rm=new Map(r.map(item=>[item[key],item]));
           return [...new Set([...l.map(item=>item[key]),...r.map(item=>item[key]),...original.map(item=>item[key])])].map(id=>visit(bm.get(id),lm.get(id),rm.get(id),[...path,id])).filter(item=>item!==undefined);

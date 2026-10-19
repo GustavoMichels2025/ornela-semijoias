@@ -5,6 +5,7 @@ const { getSql } = require('./utils/db');
 const { requireAdmin, sign, verify } = require('./utils/auth');
 const { json } = require('./utils/response');
 const { commissionSummary } = require('./utils/commission');
+const cycles = require('../../reseller-cycles');
 
 const reply = (status, body) => {
   const result = json(status, body);
@@ -80,6 +81,7 @@ exports.handler = async event => {
       const qty = Number(sale.qty);
       if (!item || !Number.isInteger(qty) || qty <= 0) return reply(409, { error: 'Não foi possível identificar o item para devolução. Solicite a conferência da loja.' });
       item.qty = Number(item.qty || 0) + qty;
+      cycles.recordReversal(reseller,sale,crypto.randomUUID());
       sale.reversedAt = new Date().toISOString();
       sale.reversedBy = 'revendedora';
       const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(state)}::jsonb,updated_at=now() WHERE id=1 AND data=${originalState}::jsonb RETURNING id`;
@@ -97,16 +99,18 @@ exports.handler = async event => {
       const product = state.products?.find(p => p._ornelaId === item.productKey);
       const price = typeof item.price === 'number' ? item.price : Number(String(item.price || '0').replace(/\./g, '').replace(',', '.'));
       if (!Number.isFinite(price) || price < 0) return reply(400, { error: 'Preço inválido. Fale com a loja.' });
+      const cycle=cycles.ensure(reseller,crypto.randomUUID());
       item.qty = Number(item.qty) - qty;
       reseller.sales.unshift({ id: saleId, date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), productKey: item.productKey,
-        name: product?.name || item.name, code: product?.code || item.code || '', qty, unitPrice: item.price, total: price * qty, source: 'revendedora' });
+        name: product?.name || item.name, code: product?.code || item.code || '', qty, unitPrice: item.price, total: price * qty, source: 'revendedora',cycleId:cycle.id });
       const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(state)}::jsonb,updated_at=now() WHERE id=1 AND data=${originalState}::jsonb RETURNING id`;
       if (!changed.length) return reply(409, { error: 'O estoque mudou. Atualize e tente novamente.' });
       return reply(200, { ok: true });
     }
     if (event.httpMethod !== 'GET') return reply(400, { error: 'Operação não permitida.' });
     const commission = commissionSummary(reseller.sales);
-    return reply(200, { name: reseller.name, commission: commission.rate, commissionSummary: commission,
+    const currentCycle=cycles.active(reseller);
+    return reply(200, { name: reseller.name, commission: commission.rate, commissionSummary: commission, cycle:currentCycle?{name:currentCycle.name,startedAt:currentCycle.startedAt}:null,
       inventory: (reseller.inventory || []).map(item => {
         const product = state.products?.find(p => p._ornelaId === item.productKey);
         return { productKey: item.productKey, code: item.code, name: product?.name || item.name, image: productPhoto(product), description: product?.description || '', qty: Number(item.qty || 0), price: item.price };
