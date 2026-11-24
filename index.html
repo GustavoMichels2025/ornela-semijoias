@@ -2993,11 +2993,13 @@
           <h4 style="margin:22px 0 10px;">Registrar venda da revendedora</h4>
           <div class="reseller-operation">
             <select id="saleReseller"></select>
+            <input type="search" id="saleItemSearch" aria-label="Buscar peça por código ou descrição" placeholder="Código ou descrição da peça" autocomplete="off" oninput="renderSaleProducts()" onkeydown="if(event.key==='Enter'){event.preventDefault();renderSaleProducts();if(document.getElementById('saleProduct').value)document.getElementById('saleQty').focus()}">
             <select id="saleProduct"></select>
             <input type="number" id="saleQty" min="1" value="1" placeholder="Qtd.">
             <button class="btn btn-primary" type="button" id="registerResellerSale">Registrar venda</button>
           </div>
 
+          <p id="saleItemSearchStatus" role="status" style="font-size:12px;color:var(--muted)"></p>
           <label for="resellerStockSearch">Buscar item no estoque da revendedora</label>
           <input id="resellerStockSearch" type="search" placeholder="Digite o código ou parte do nome do produto" autocomplete="off" oninput="renderResellerStock()">
           <div class="reseller-cards" id="resellerStockList"></div>
@@ -4066,11 +4068,19 @@
     function renderSaleProducts() {
       const reseller = resellers.find(item => item.id === saleReseller.value);
       const inventory = reseller?.inventory || [];
+      const selected = saleProduct.value;
+      const query = normalizeCode(document.getElementById('saleItemSearch')?.value || '');
+      const matches = inventory.filter(item => Number(item.qty || 0) > 0 && (!query || normalizeCode(`${item.code || ''} ${currentResellerItemName(item)} ${item.description || ''}`).includes(query)));
       saleProduct.innerHTML =
         '<option value="">Selecione um item com a revendedora</option>' +
-        inventory.filter(item => Number(item.qty || 0) > 0).map(item =>
-          `<option value="${item.productKey}">${escapeHtml(currentResellerItemName(item))} — saldo ${Number(item.qty || 0)}</option>`
+        matches.map(item =>
+          `<option value="${escapeHtml(item.productKey)}">${escapeHtml(item.code || 'Sem código')} — ${escapeHtml(currentResellerItemName(item))} — saldo ${Number(item.qty || 0)}</option>`
         ).join("");
+      const exact = query && matches.filter(item => normalizeCode(item.code || '') === query);
+      if (exact && exact.length === 1) saleProduct.value = exact[0].productKey;
+      else if (query && matches.length === 1) saleProduct.value = matches[0].productKey;
+      else if (matches.some(item => item.productKey === selected)) saleProduct.value = selected;
+      document.getElementById('saleItemSearchStatus').textContent = !reseller ? 'Selecione uma revendedora para pesquisar suas peças.' : query ? (matches.length ? `${matches.length} item(ns) encontrado(s). Confira a seleção antes de registrar a venda.` : 'Nenhum item com saldo encontrado para esta busca.') : '';
     }
 
     function panelSheet(headers, rows) {
@@ -7423,7 +7433,7 @@
       }
     });
 
-    saleReseller.addEventListener("change", renderSaleProducts);
+    saleReseller.addEventListener("change", () => { document.getElementById('saleItemSearch').value = ''; saleProduct.value = ''; renderSaleProducts(); });
 
     document.getElementById("registerResellerSale").addEventListener("click", () => {
       const reseller = resellers.find(item => item.id === saleReseller.value);

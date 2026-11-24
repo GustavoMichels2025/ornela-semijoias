@@ -8,7 +8,7 @@ body{font-family:Montserrat,Arial,sans-serif}.item-photo{display:block;width:42p
 <section id="loginBox"><h2>Entrar</h2><form id="loginForm"><label>Login<input id="login" autocomplete="username" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" required></label><button>Entrar</button></form><p>Solicite seu login e sua senha à loja.</p></section>
 <div id="portal" hidden><nav><strong id="name"></strong><button id="refresh">Atualizar</button><button id="logout">Sair</button></nav><p id="currentCycle" class="totals"></p>
 <section><h2>Meu estoque</h2><label for="inventorySearch">Buscar por código ou nome<input id="inventorySearch" type="search" placeholder="Digite o código ou parte do nome" autocomplete="off" oninput="renderInventory()"></label><p id="inventorySearchStatus" role="status"></p><div id="inventory" class="scroll"></div></section>
-<section><h2>Registrar venda</h2><p>A venda dá baixa somente nas peças que estão com você.</p><form id="saleForm"><label class="sale-search">Buscar por código<input id="productCodeSearch" type="search" placeholder="Digite o código da peça" autocomplete="off"></label><label class="sale-product">Produto<select id="product" required></select></label><label>Quantidade<input id="qty" type="number" min="1" step="1" value="1" required></label><button>Confirmar venda</button></form><p id="productSearchStatus" role="status"></p><div id="salePreview" class="sale-preview" hidden></div></section>
+<section><h2>Registrar venda</h2><p>A venda dá baixa somente nas peças que estão com você.</p><form id="saleForm"><label class="sale-search">Buscar por código ou descrição<input id="productCodeSearch" type="search" placeholder="Digite o código ou parte da descrição" autocomplete="off"></label><label class="sale-product">Produto<select id="product" required></select></label><label>Quantidade<input id="qty" type="number" min="1" step="1" value="1" required></label><button>Confirmar venda</button></form><p id="productSearchStatus" role="status"></p><div id="salePreview" class="sale-preview" hidden></div></section>
 <section><h2>Minhas vendas</h2><div id="salesCards" class="sales-cards"></div><div class="chart-box"><h3>Seu caminho para a comissão de 30%</h3><p id="tierText"></p><div id="tierProgress" class="progress" role="progressbar" aria-label="Vendas em relação à faixa de R$ 1.000" aria-valuemin="0" aria-valuemax="100"><span></span></div><h3 style="margin-top:24px">Vendas por mês</h3><p>Últimos seis meses · valores em reais</p><div id="salesChart" class="chart-scroll"></div></div><p id="totals" class="totals"></p><button id="download">Baixar relatório CSV</button><div id="sales" class="scroll"></div></section></div>
 <p><a href="/">Voltar à vitrine</a></p></main><script>
 const api='/.netlify/functions/reseller',key='ornelaResellerToken';
@@ -24,12 +24,13 @@ function renderSalePreview(){const item=data?.inventory.find(i=>i.productKey===$
 $('product').addEventListener('change',renderSalePreview);
 async function request(method='GET',body){const r=await fetch(api,{method,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sessionStorage.getItem(key)||'')},...(body?{body:JSON.stringify(body)}:{})});const result=await r.json();if(!r.ok){if(r.status===401){sessionStorage.removeItem(key);$('portal').hidden=true;$('loginBox').hidden=false}throw Error(result.error||'Falha ao acessar.')}return result}
 function filterSaleProducts(){
-  const selected=$('product').value,code=$('productCodeSearch').value.trim().toLowerCase();
-  const items=(data?.inventory||[]).filter(i=>i.qty>0&&(!code||String(i.code||'').toLowerCase().includes(code)));
+  const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const selected=$('product').value,code=normalize($('productCodeSearch').value);
+  const items=(data?.inventory||[]).filter(i=>i.qty>0&&(!code||normalize(`${i.code||''} ${i.name||''} ${i.description||''}`).includes(code)));
   $('product').innerHTML='<option value="">Selecione uma peça</option>'+items.map(i=>'<option value="'+esc(i.productKey)+'">'+esc(i.name)+' • '+esc(i.code)+' • saldo '+i.qty+'</option>').join('');
-  const exact=code&&items.find(i=>String(i.code||'').trim().toLowerCase()===code);
+  const exactMatches=code?items.filter(i=>normalize(i.code)===code):[];const exact=exactMatches.length===1?exactMatches[0]:null;
   if(exact)$('product').value=exact.productKey;else if(items.length===1&&code)$('product').value=items[0].productKey;else if(items.some(i=>i.productKey===selected))$('product').value=selected;
-  $('productSearchStatus').textContent=code?(items.length?items.length+' peça(s) encontrada(s). Confira a seleção antes de vender.':'Nenhuma peça com saldo para esse código.') : '';
+  $('productSearchStatus').textContent=code?(items.length?items.length+' peça(s) encontrada(s). Confira a seleção antes de vender.':'Nenhuma peça com saldo para esse código ou descrição.') : '';
   renderSalePreview();
 }
 $('productCodeSearch').addEventListener('input',filterSaleProducts);
