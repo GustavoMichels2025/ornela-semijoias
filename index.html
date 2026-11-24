@@ -2338,7 +2338,12 @@
     .cart-float {
       background: linear-gradient(135deg, #241f1b, #3b3028);
       box-shadow: 0 18px 36px rgba(36,31,27,.2);
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
     }
+    .cart-float:hover { transform: none; }
+    .cart-float.dragging { cursor: grabbing; }
 
     .cart-panel,
     .login-card,
@@ -3284,7 +3289,7 @@
 
 
 
-  <button class="cart-float" type="button" id="cartButton">Sacola (0)</button>
+  <button class="cart-float" type="button" id="cartButton" title="Clique para abrir ou arraste para mover a sacola">Sacola (0)</button>
   <a class="whatsapp-float" id="whatsappFloat" href="https://wa.me/5541998212110" target="_blank" aria-label="Falar com a Ornela no WhatsApp" title="Falar com a Ornela no WhatsApp">
     <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <path d="M16.04 3.2c-7.06 0-12.8 5.72-12.8 12.76 0 2.25.59 4.44 1.72 6.37L3.12 29l6.84-1.79a12.76 12.76 0 0 0 6.08 1.55h.01c7.05 0 12.79-5.72 12.79-12.76 0-3.41-1.33-6.62-3.75-9.03A12.7 12.7 0 0 0 16.04 3.2Zm.01 23.38h-.01c-1.92 0-3.8-.52-5.44-1.5l-.39-.23-4.06 1.06 1.08-3.95-.26-.41a10.55 10.55 0 0 1-1.61-5.59c0-5.83 4.79-10.58 10.68-10.58 2.85 0 5.53 1.11 7.55 3.12a10.48 10.48 0 0 1 3.13 7.5c0 5.83-4.79 10.58-10.67 10.58Zm5.86-7.92c-.32-.16-1.9-.94-2.19-1.04-.29-.11-.5-.16-.71.16-.21.31-.82 1.04-1 1.25-.18.21-.37.24-.69.08-.32-.16-1.35-.49-2.56-1.57-.95-.84-1.59-1.88-1.77-2.2-.18-.31-.02-.48.14-.64.14-.14.32-.37.48-.55.16-.18.21-.31.32-.52.11-.21.05-.39-.03-.55-.08-.16-.71-1.7-.97-2.33-.25-.61-.51-.53-.71-.54h-.61c-.21 0-.55.08-.84.39-.29.31-1.1 1.07-1.1 2.61 0 1.54 1.13 3.03 1.29 3.24.16.21 2.23 3.39 5.4 4.75.75.32 1.34.51 1.8.66.76.24 1.45.21 1.99.13.61-.09 1.9-.77 2.17-1.52.27-.75.27-1.39.19-1.52-.08-.13-.29-.21-.61-.37Z"/>
@@ -3435,6 +3440,51 @@
     const adminArea = document.getElementById("adminArea");
     const toggleAdmin = document.getElementById("toggleAdmin");
     const cartButton = document.getElementById("cartButton");
+    (function enableMovableCart() {
+      const key = 'ornela-cart-position-v1';
+      let position = null, drag = null, suppressClick = false;
+      try { const saved = JSON.parse(localStorage.getItem(key)); if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) position = saved; } catch {}
+      const bounds = () => ({ x: Math.max(8, innerWidth - cartButton.offsetWidth - 8), y: Math.max(8, innerHeight - cartButton.offsetHeight - 24) });
+      function place(x, y) {
+        const b = bounds();
+        cartButton.style.left = Math.min(b.x, Math.max(8, x)) + 'px';
+        cartButton.style.top = Math.min(b.y, Math.max(8, y)) + 'px';
+        cartButton.style.right = 'auto'; cartButton.style.bottom = 'auto';
+      }
+      function restore() { if (position && cartButton.offsetWidth) { const b = bounds(); place(8 + position.x * (b.x - 8), 8 + position.y * (b.y - 8)); } }
+      cartButton.addEventListener('pointerdown', event => {
+        if (!event.isPrimary || event.button !== 0) return;
+        suppressClick = false;
+        const rect = cartButton.getBoundingClientRect();
+        drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
+        cartButton.setPointerCapture(event.pointerId);
+      });
+      cartButton.addEventListener('pointermove', event => {
+        if (!drag || drag.id !== event.pointerId) return;
+        const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+        if (!drag.moved && Math.hypot(dx, dy) < 7) return;
+        drag.moved = true; suppressClick = true;
+        cartButton.classList.add('dragging');
+        place(drag.left + dx, drag.top + dy);
+      });
+      function finish(event) {
+        if (!drag || event.pointerId !== drag.id) return;
+        if (drag.moved) {
+          const b = bounds(), rect = cartButton.getBoundingClientRect();
+          position = { x: (rect.left - 8) / Math.max(1, b.x - 8), y: (rect.top - 8) / Math.max(1, b.y - 8) };
+          try { localStorage.setItem(key, JSON.stringify(position)); } catch {}
+        }
+        drag = null; cartButton.classList.remove('dragging');
+        if (cartButton.hasPointerCapture(event.pointerId)) cartButton.releasePointerCapture(event.pointerId);
+      }
+      cartButton.addEventListener('pointerup', finish);
+      cartButton.addEventListener('pointercancel', finish);
+      cartButton.addEventListener('lostpointercapture', finish);
+      cartButton.addEventListener('click', event => { if (suppressClick && event.detail !== 0) { event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false; } }, true);
+      addEventListener('resize', restore);
+      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(restore).observe(cartButton);
+      restore();
+    })();
     const whatsappFloat = document.getElementById("whatsappFloat");
     const cartPanel = document.getElementById("cartPanel");
     const cartItems = document.getElementById("cartItems");
