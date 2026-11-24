@@ -2998,6 +2998,8 @@
             <button class="btn btn-primary" type="button" id="registerResellerSale">Registrar venda</button>
           </div>
 
+          <label for="resellerStockSearch">Buscar item no estoque da revendedora</label>
+          <input id="resellerStockSearch" type="search" placeholder="Digite o código ou parte do nome do produto" autocomplete="off" oninput="renderResellerStock()">
           <div class="reseller-cards" id="resellerStockList"></div>
         </div>
 
@@ -4128,13 +4130,14 @@
 
     function renderResellerStock() {
       const list = document.getElementById("resellerStockList");
+      const query = normalizeCode(document.getElementById('resellerStockSearch')?.value || '');
       if (!resellers.length) {
         list.innerHTML = '<div class="reseller-empty">Cadastre uma revendedora para começar.</div>';
         return;
       }
 
       list.innerHTML = resellers.map(reseller => {
-        const inventory = (reseller.inventory || []).filter(item => Number(item.qty || 0) > 0);
+        const inventory = (reseller.inventory || []).filter(item => Number(item.qty || 0) > 0 && (!query || normalizeCode(`${item.code || ''} ${currentResellerItemName(item)}`).includes(query)));
         return `
           <div class="reseller-card">
             <div class="reseller-card-head">
@@ -4147,7 +4150,7 @@
               escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price),
               numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price)),
               `<button type="button" onclick="returnResellerItem('${reseller.id}','${item.productKey}')">Devolver item</button>`
-            ])) : '<div class="reseller-empty">Nenhuma peça com esta revendedora.</div>'}
+            ])) : `<div class="reseller-empty">${query ? 'Nenhum item encontrado para esta busca.' : 'Nenhuma peça com esta revendedora.'}</div>`}
           </div>
         `;
       }).join("");
