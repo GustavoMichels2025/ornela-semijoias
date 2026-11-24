@@ -1947,6 +1947,15 @@
       grid-template-columns: 1.1fr .8fr 1.6fr .5fr auto;
     }
 
+    .reseller-operation.sale-operation {
+      grid-template-columns: minmax(120px, 1fr) minmax(120px, .8fr) minmax(220px, 2.8fr) 65px auto;
+    }
+    .sale-operation input, .sale-operation select { width: 100%; min-width: 0; }
+    @media(max-width:800px) {
+      .reseller-operation.sale-operation { grid-template-columns: minmax(0, 1fr) 75px; }
+      .sale-operation #saleReseller, .sale-operation #saleItemSearch, .sale-operation button { grid-column: 1 / -1; }
+    }
+
     .transfer-product-preview {
       grid-column: 1 / -1;
       display: none;
@@ -2991,7 +3000,7 @@
           </div>
 
           <h4 style="margin:22px 0 10px;">Registrar venda da revendedora</h4>
-          <div class="reseller-operation">
+          <div class="reseller-operation sale-operation">
             <select id="saleReseller"></select>
             <input type="search" id="saleItemSearch" aria-label="Buscar peça por código ou descrição" placeholder="Código ou descrição da peça" autocomplete="off" oninput="renderSaleProducts()" onkeydown="if(event.key==='Enter'){event.preventDefault();renderSaleProducts();if(document.getElementById('saleProduct').value)document.getElementById('saleQty').focus()}">
             <select id="saleProduct"></select>
