@@ -11,6 +11,7 @@
   <script src="/state-merge.js"></script>
   <script src="/reseller-cycles.js"></script>
   <script src="/product-spreadsheet.js"></script>
+  <script src="/catalog-labels.js"></script>
 
   <style>
     :root {
@@ -3189,12 +3190,40 @@
 
       <div class="admin-box" data-admin-panel="labels">
         <h3>Etiquetas Ornela</h3>
-        <p>Gere, edite e imprima etiquetas usando o painel de etiquetas da Ornela, sem sair da administração.</p>
+        <p>Gere etiquetas dos produtos do catálogo, individualmente ou em massa. Usa o código, nome e preço atual da vitrine, inclusive Promoção e Black Friday. Não altera estoques.</p>
+        <div class="xml-actions">
+          <input id="labelProductSearch" type="search" placeholder="Buscar código ou nome" aria-label="Buscar produtos para etiquetas" oninput="labelPage=0;renderCatalogLabels()">
+          <select id="labelCategory" aria-label="Filtrar categoria das etiquetas" onchange="labelPage=0;renderCatalogLabels()"><option value="">Todas as categorias</option></select>
+          <label><input id="labelInStock" type="checkbox" onchange="labelPage=0;renderCatalogLabels()"> Somente com estoque</label>
+          <label><input id="labelVisible" type="checkbox" onchange="labelPage=0;renderCatalogLabels()"> Somente visíveis</label>
+        </div>
+        <div class="xml-actions">
+          <button class="btn btn-light" type="button" onclick="selectCatalogLabels(true)">Selecionar todos do filtro</button>
+          <button class="btn btn-light" type="button" onclick="selectCatalogLabels(false)">Desmarcar todos do filtro</button>
+          <button class="btn btn-light" type="button" onclick="labelSelection.clear();invalidateCatalogLabels();renderCatalogLabels()">Limpar seleção</button>
+          <label>Qtd. por produto <input id="labelBulkQty" type="number" min="1" max="1000" step="1" value="1" style="width:80px"></label>
+          <button class="btn btn-light" type="button" onclick="setCatalogLabelQuantities(false)">Aplicar quantidade aos selecionados</button>
+          <button class="btn btn-light" type="button" onclick="setCatalogLabelQuantities(true)">Uma etiqueta por unidade em estoque</button>
+        </div>
+        <p id="catalogLabelsStatus" role="status"></p>
+        <div id="catalogLabelsList"></div>
+        <div class="xml-actions">
+          <button class="btn btn-light" id="labelPrevious" type="button" onclick="labelPage--;renderCatalogLabels()">← Anterior</button>
+          <span id="labelPageStatus"></span>
+          <button class="btn btn-light" id="labelNext" type="button" onclick="labelPage++;renderCatalogLabels()">Próxima →</button>
+          <button class="btn btn-primary" type="button" onclick="generateCatalogLabels()">Gerar prévia dos selecionados</button>
+          <button class="btn btn-light" id="printCatalogLabels" type="button" disabled onclick="const frame=document.getElementById('catalogLabelsPreview');frame.contentWindow.focus();frame.contentWindow.print()">Imprimir etiquetas</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted)">Formato preservado: folha 217 × 280 mm, 4 colunas × 20 linhas, 80 etiquetas por folha, largura 44 mm. Imprima em tamanho real (100%), sem cabeçalhos e rodapés. Até 2.400 etiquetas por lote. Confira e gere a prévia novamente após alterar a seleção. Ajustes no texto da prévia valem apenas para a impressão.</p>
+        <iframe id="catalogLabelsPreview" title="Prévia das etiquetas dos produtos do catálogo" hidden sandbox="allow-same-origin allow-modals" style="width:100%;height:75vh;min-height:450px;border:1px solid #ded4c5;border-radius:10px"></iframe>
+        <details style="margin-top:22px">
+          <summary style="cursor:pointer;font-weight:600">Outras opções: gerador original por XML ou cadastro manual</summary>
         <div class="xml-actions">
           <a class="btn btn-light" href="https://etornela.netlify.app/" target="_blank" rel="noopener noreferrer">Abrir etiquetas em nova aba</a>
         </div>
         <p style="font-size:12px;color:var(--muted)">Este gerador mantém suas regras próprias: no XML, calcula o preço de venda pelo valor unitário × 4. Não sincroniza produtos nem preços com o catálogo. Confira os dados e a prévia antes de imprimir. O botão Salvar alterações do catálogo não salva as edições feitas neste gerador.</p>
         <iframe id="ornelaLabelsFrame" title="Gerador de etiquetas Ornela" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-modals allow-downloads" style="display:block;width:100%;height:78vh;min-height:600px;border:1px solid #ded4c5;border-radius:10px;background:#f4f4f4"></iframe>
+        </details>
       </div>
 
       <div class="admin-box" data-admin-panel="photos">
@@ -5593,6 +5622,62 @@
       setTextById("dashCustomers", customers.length);
     }
 
+    const labelSelection = new Map();
+    let labelPage = 0;
+    function labelProductsFiltered() {
+      const query = normalizeCode(document.getElementById('labelProductSearch').value);
+      const category = document.getElementById('labelCategory').value;
+      return products.filter(p=>(!query||normalizeCode(`${p.code||''} ${p.name||''}`).includes(query))&&(!category||p.category===category)&&(!document.getElementById('labelInStock').checked||Number(p.stock)>0)&&(!document.getElementById('labelVisible').checked||!p.hidden))
+        .slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR',{sensitivity:'base',numeric:true}));
+    }
+    function invalidateCatalogLabels() { document.getElementById('printCatalogLabels').disabled = true; }
+    function updateCatalogLabelsStatus() {
+      const total = [...labelSelection.values()].reduce((sum,qty)=>sum+qty,0);
+      document.getElementById('catalogLabelsStatus').textContent = `${labelProductsFiltered().length} produto(s) no filtro. ${labelSelection.size} selecionado(s) em todas as páginas • ${total} etiqueta(s) • ${Math.ceil(total/80)} folha(s).`;
+    }
+    function renderCatalogLabels() {
+      const category = document.getElementById('labelCategory'), current = category.value;
+      category.innerHTML='<option value="">Todas as categorias</option>'+[...new Set(products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      if ([...category.options].some(o=>o.value===current)) category.value=current;
+      for (const id of labelSelection.keys()) if (!products.some(p=>p._ornelaId===id)) { labelSelection.delete(id); invalidateCatalogLabels(); }
+      const list=labelProductsFiltered(), pages=Math.max(1,Math.ceil(list.length/80));labelPage=Math.max(0,Math.min(labelPage,pages-1));
+      document.getElementById('catalogLabelsList').innerHTML=list.length?panelSheet(['Selecionar','Código','Produto','Categoria','Preço da etiqueta R$','Estoque','Qtd. etiquetas'],list.slice(labelPage*80,(labelPage+1)*80).map(p=>[
+        `<input type="checkbox" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Selecionar ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'checked':''} onchange="if(this.checked)labelSelection.set(this.dataset.productId,1);else labelSelection.delete(this.dataset.productId);invalidateCatalogLabels();renderCatalogLabels()">`,
+        escapeHtml(p.code||''),escapeHtml(p.name),escapeHtml(p.category),escapeHtml(sellingPrice(p)),Number(p.stock||0),
+        `<input type="number" min="1" max="1000" step="1" value="${labelSelection.get(p._ornelaId)||1}" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Quantidade de etiquetas de ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'':'disabled'} style="width:80px" onchange="changeCatalogLabelQty(this)">`
+      ])):'<p>Nenhum produto encontrado.</p>';
+      document.getElementById('labelPrevious').disabled=labelPage===0;document.getElementById('labelNext').disabled=labelPage>=pages-1;
+      document.getElementById('labelPageStatus').textContent=`Página ${labelPage+1} de ${pages}`;
+      updateCatalogLabelsStatus();
+    }
+    function changeCatalogLabelQty(input) {
+      const qty=Number(input.value);
+      if(!Number.isInteger(qty)||qty<1||qty>1000){alert('Informe de 1 a 1.000 etiquetas por produto.');input.value=labelSelection.get(input.dataset.productId)||1;return;}
+      labelSelection.set(input.dataset.productId,qty);invalidateCatalogLabels();updateCatalogLabelsStatus();
+    }
+    function selectCatalogLabels(select) {
+      for(const p of labelProductsFiltered()) { if(select)labelSelection.set(p._ornelaId,labelSelection.get(p._ornelaId)||1);else labelSelection.delete(p._ornelaId); }
+      invalidateCatalogLabels();renderCatalogLabels();
+    }
+    function setCatalogLabelQuantities(fromStock) {
+      const qty=Number(document.getElementById('labelBulkQty').value);
+      if(!fromStock&&(!Number.isInteger(qty)||qty<1||qty>1000)){alert('Informe de 1 a 1.000 etiquetas por produto.');return;}
+      if(fromStock&&[...labelSelection.keys()].some(id=>Number(products.find(p=>p._ornelaId===id)?.stock||0)>1000)){alert('Um produto tem mais de 1.000 unidades. Defina a quantidade manualmente para este lote.');return;}
+      for(const id of labelSelection.keys()) {
+        const amount=fromStock?Math.max(0,Math.floor(Number(products.find(p=>p._ornelaId===id)?.stock||0))):qty;
+        if(amount)labelSelection.set(id,amount);else labelSelection.delete(id);
+      }
+      invalidateCatalogLabels();renderCatalogLabels();
+    }
+    function generateCatalogLabels() {
+      try {
+        if(!adminDataReady)throw Error('Entre no painel e aguarde o carregamento do catálogo.');
+        const labels=OrnelaLabels.collect(products,labelSelection,sellingPrice), frame=document.getElementById('catalogLabelsPreview');
+        invalidateCatalogLabels();frame.onload=()=>{document.getElementById('printCatalogLabels').disabled=false;};frame.srcdoc=OrnelaLabels.documentHtml(labels);frame.hidden=false;
+        document.getElementById('catalogLabelsStatus').textContent=`Prévia gerada: ${labels.length} etiqueta(s) em ${Math.ceil(labels.length/80)} folha(s). Confira os preços e imprima em 100%. Nenhum saldo foi alterado.`;
+      }catch(error){alert(error.message);}
+    }
+
     function switchAdminTab(tabName) {
       document.querySelectorAll("[data-admin-tab]").forEach(button => {
         button.classList.toggle("active", button.dataset.adminTab === tabName);
@@ -5606,6 +5691,7 @@
       updateDashboard();
 
       if (tabName === 'labels') {
+        renderCatalogLabels();
         const frame = document.getElementById('ornelaLabelsFrame');
         if (!frame.getAttribute('src')) frame.src = 'https://etornela.netlify.app/';
       }
