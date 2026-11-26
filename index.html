@@ -2893,6 +2893,7 @@
         <button class="admin-tab" type="button" data-admin-tab="products">Produtos</button>
         <button class="admin-tab" type="button" data-admin-tab="xml">XML</button>
         <button class="admin-tab" type="button" data-admin-tab="photos">Fotos</button>
+        <button class="admin-tab" type="button" data-admin-tab="labels">Etiquetas</button>
         <button class="admin-tab" type="button" data-admin-tab="orders">Pedidos</button>
         <button class="admin-tab" type="button" data-admin-tab="customers">Clientes</button>
         <button class="admin-tab" type="button" data-admin-tab="resellers">Revendedoras</button>
@@ -3184,6 +3185,16 @@
             <tbody id="xmlItemsBody"></tbody>
           </table>
         </div>
+      </div>
+
+      <div class="admin-box" data-admin-panel="labels">
+        <h3>Etiquetas Ornela</h3>
+        <p>Gere, edite e imprima etiquetas usando o painel de etiquetas da Ornela, sem sair da administração.</p>
+        <div class="xml-actions">
+          <a class="btn btn-light" href="https://etornela.netlify.app/" target="_blank" rel="noopener noreferrer">Abrir etiquetas em nova aba</a>
+        </div>
+        <p style="font-size:12px;color:var(--muted)">Este gerador mantém suas regras próprias: no XML, calcula o preço de venda pelo valor unitário × 4. Não sincroniza produtos nem preços com o catálogo. Confira os dados e a prévia antes de imprimir. O botão Salvar alterações do catálogo não salva as edições feitas neste gerador.</p>
+        <iframe id="ornelaLabelsFrame" title="Gerador de etiquetas Ornela" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-modals allow-downloads" style="display:block;width:100%;height:78vh;min-height:600px;border:1px solid #ded4c5;border-radius:10px;background:#f4f4f4"></iframe>
       </div>
 
       <div class="admin-box" data-admin-panel="photos">
@@ -5593,6 +5604,11 @@
       });
 
       updateDashboard();
+
+      if (tabName === 'labels') {
+        const frame = document.getElementById('ornelaLabelsFrame');
+        if (!frame.getAttribute('src')) frame.src = 'https://etornela.netlify.app/';
+      }
 
       if (tabName === "orders") {
         refreshOrdersHistory();
