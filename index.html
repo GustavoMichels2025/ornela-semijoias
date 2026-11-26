@@ -3219,14 +3219,6 @@
           <label><input id="labelInStock" type="checkbox" onchange="labelPage=0;renderCatalogLabels()"> Somente com estoque</label>
           <label><input id="labelVisible" type="checkbox" onchange="labelPage=0;renderCatalogLabels()"> Somente visíveis</label>
         </div>
-        <div class="xml-actions">
-          <button class="btn btn-light" type="button" onclick="selectCatalogLabels(true)">Selecionar todos do filtro</button>
-          <button class="btn btn-light" type="button" onclick="selectCatalogLabels(false)">Desmarcar todos do filtro</button>
-          <button class="btn btn-light" type="button" onclick="labelSelection.clear();invalidateCatalogLabels();renderCatalogLabels()">Limpar seleção</button>
-          <label>Qtd. por produto <input id="labelBulkQty" type="number" min="1" max="1000" step="1" value="1" style="width:80px"></label>
-          <button class="btn btn-light" type="button" onclick="setCatalogLabelQuantities(false)">Aplicar quantidade aos selecionados</button>
-          <button class="btn btn-light" type="button" onclick="setCatalogLabelQuantities(true)">Uma etiqueta por unidade em estoque</button>
-        </div>
         <p id="catalogLabelsStatus" role="status"></p>
         <div id="catalogLabelsList"></div>
         <div class="xml-actions">
@@ -5683,16 +5675,6 @@
     }
     function selectCatalogLabels(select) {
       for(const p of labelProductsFiltered()) { if(select)labelSelection.set(p._ornelaId,labelSelection.get(p._ornelaId)||1);else labelSelection.delete(p._ornelaId); }
-      invalidateCatalogLabels();renderCatalogLabels();
-    }
-    function setCatalogLabelQuantities(fromStock) {
-      const qty=Number(document.getElementById('labelBulkQty').value);
-      if(!fromStock&&(!Number.isInteger(qty)||qty<1||qty>1000)){alert('Informe de 1 a 1.000 etiquetas por produto.');return;}
-      if(fromStock&&[...labelSelection.keys()].some(id=>Number(products.find(p=>p._ornelaId===id)?.stock||0)>1000)){alert('Um produto tem mais de 1.000 unidades. Defina a quantidade manualmente para este lote.');return;}
-      for(const id of labelSelection.keys()) {
-        const amount=fromStock?Math.max(0,Math.floor(Number(products.find(p=>p._ornelaId===id)?.stock||0))):qty;
-        if(amount)labelSelection.set(id,amount);else labelSelection.delete(id);
-      }
       invalidateCatalogLabels();renderCatalogLabels();
     }
     function generateCatalogLabels() {
