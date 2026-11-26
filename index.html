@@ -3241,6 +3241,7 @@
             <option value="Novidade">Novidade</option>
             <option value="Mais vendido">Mais vendido</option>
             <option value="Promoção">Promoção</option>
+            <option value="Black Friday">Black Friday</option>
           </select>
 
           <button class="btn btn-primary" type="button" id="applyBulk">Aplicar alterações</button>
@@ -3304,6 +3305,7 @@
             <option value="Novidade">Novidade</option>
             <option value="Mais vendido">Mais vendido</option>
             <option value="Promoção">Promoção</option>
+            <option value="Black Friday">Black Friday</option>
           </select>
 
           <div class="image-save-box">
@@ -3390,6 +3392,7 @@
           <option value="Novidade">Novidade</option>
           <option value="Mais vendido">Mais vendido</option>
           <option value="Promoção">Promoção</option>
+          <option value="Black Friday">Black Friday</option>
         </select>
         <select id="editHidden">
           <option value="false">Visível no catálogo</option>
@@ -4800,7 +4803,7 @@
     function activePromotion(product) {
       const regular = brMoneyToNumber(product.price);
       const promotional = brMoneyToNumber(product.promotionPrice);
-      return product.tag === "Promoção" && promotional > 0 && promotional < regular;
+      return ["Promoção", "Black Friday"].includes(product.tag) && promotional > 0 && promotional < regular;
     }
 
     function sellingPrice(product) {
@@ -5110,6 +5113,7 @@
             <option value="Novidade" ${product.tag === "Novidade" ? "selected" : ""}>Novidade</option>
             <option value="Mais vendido" ${product.tag === "Mais vendido" ? "selected" : ""}>Mais vendido</option>
             <option value="Promoção" ${product.tag === "Promoção" ? "selected" : ""}>Promoção</option>
+            <option value="Black Friday" ${product.tag === "Black Friday" ? "selected" : ""}>Black Friday</option>
           </select>
           <select data-bulk-field="hidden" data-index="${index}">
             <option value="false" ${!product.hidden ? "selected" : ""}>Visível</option>
@@ -6492,6 +6496,7 @@
               <option value="Novidade" ${item.tag === "Novidade" ? "selected" : ""}>Novidade</option>
               <option value="Mais vendido" ${item.tag === "Mais vendido" ? "selected" : ""}>Mais vendido</option>
               <option value="Promoção" ${item.tag === "Promoção" ? "selected" : ""}>Promoção</option>
+              <option value="Black Friday" ${item.tag === "Black Friday" ? "selected" : ""}>Black Friday</option>
             </select>
           </td>
         `;

@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 const importer = require('../product-spreadsheet');
 const XLSX = require('../assets/xlsx.full.min.js');
 const row = (extra={}) => importer.headers.map((_,i) => ({code:'001010',name:'Anel de coração',description:'Peça delicada',category:'Anéis',costPrice:'9,50',price:'39,00',promotionPrice:'',stock:'2',tag:'Novidade',visible:'Sim',...extra})[['code','name','description','category','costPrice','price','promotionPrice','stock','tag','visible'][i]]);
+test('Aceita destaque Black Friday em importação e atualização',()=>{
+  const result=importer.validate([importer.headers,row({tag:'BLACK FRIDAY',promotionPrice:'29,00'})]);
+  assert.equal(result.errors.length,0);assert.equal(result.records[0].tag,'Black Friday');assert.equal(result.records[0].promotionPrice,'29,00');
+});
 test('Importa dados sem foto e preserva código e acentos', () => {
   const result=importer.validate([importer.headers,row()]);
   assert.equal(result.errors.length,0);assert.equal(result.records[0].code,'001010');

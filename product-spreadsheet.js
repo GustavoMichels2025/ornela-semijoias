@@ -39,8 +39,8 @@
       if (!/^\d+$/.test(stockText) || !Number.isSafeInteger(stock)) { fail('Estoque deve ser um número inteiro a partir de zero.'); continue; }
       const visible = normalize(data.visible || 'sim');
       if (!['sim','nao','true','false','1','0'].includes(visible)) { fail('Visível deve ser Sim ou Não.'); continue; }
-      const tags = {novidade:'Novidade',maisvendido:'Mais vendido',promocao:'Promoção'};
-      const tag = normalize(data.tag); if (tag && !tags[tag]) { fail('Destaque deve ser Novidade, Mais vendido, Promoção ou vazio.'); continue; }
+      const tags = {novidade:'Novidade',maisvendido:'Mais vendido',promocao:'Promoção',blackfriday:'Black Friday'};
+      const tag = normalize(data.tag); if (tag && !tags[tag]) { fail('Destaque deve ser Novidade, Mais vendido, Promoção, Black Friday ou vazio.'); continue; }
       const record = {code:data.code,name:data.name,description:data.description || '',category:data.category,price:formatMoney(price),costPrice:cost === null ? '' : formatMoney(cost),promotionPrice:promo === null ? '' : formatMoney(promo),stock,tag:tags[tag] || '',hidden:['nao','false','0'].includes(visible),image:'',images:[]};
       if (known.has(code)) {
         const matches = existing.filter(p => normalize(p.code) === code);
@@ -102,7 +102,7 @@
       ['Obrigatórios: Código, Nome, Categoria e Preço. Estoque vazio será zero.'],
       ['Código deve estar como Texto para preservar zeros iniciais. Não use fórmulas.'],
       ['Preço e Custo: 89,90 ou 89.90. Não use separador de milhares.'],
-      ['Destaque: Novidade, Mais vendido, Promoção ou vazio.'],
+      ['Destaque: Novidade, Mais vendido, Promoção, Black Friday ou vazio.'],
       ['Visível: Sim ou Não. Vazio significa Sim.'],
       ['Ao enviar, escolha se deseja atualizar os códigos já cadastrados. Fotos e identidade dos produtos são preservadas.'],
       ['Se confirmar atualização, o estoque da planilha substitui o saldo da vitrine; não será somado. Colunas vazias podem limpar dados opcionais.'],
