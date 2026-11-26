@@ -5641,11 +5641,13 @@
       if ([...category.options].some(o=>o.value===current)) category.value=current;
       for (const id of labelSelection.keys()) if (!products.some(p=>p._ornelaId===id)) { labelSelection.delete(id); invalidateCatalogLabels(); }
       const list=labelProductsFiltered(), pages=Math.max(1,Math.ceil(list.length/80));labelPage=Math.max(0,Math.min(labelPage,pages-1));
-      document.getElementById('catalogLabelsList').innerHTML=list.length?panelSheet(['Selecionar','Código','Produto','Categoria','Preço da etiqueta R$','Estoque','Qtd. etiquetas'],list.slice(labelPage*80,(labelPage+1)*80).map(p=>[
+      document.getElementById('catalogLabelsList').innerHTML=list.length?panelSheet(['<label style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><input id="labelSelectFiltered" type="checkbox" aria-label="Selecionar todos os itens filtrados, em todas as páginas" onchange="selectCatalogLabels(this.checked)">Selecionar todos</label>','Código','Produto','Categoria','Preço da etiqueta R$','Estoque','Qtd. etiquetas'],list.slice(labelPage*80,(labelPage+1)*80).map(p=>[
         `<input type="checkbox" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Selecionar ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'checked':''} onchange="if(this.checked)labelSelection.set(this.dataset.productId,1);else labelSelection.delete(this.dataset.productId);invalidateCatalogLabels();renderCatalogLabels()">`,
         escapeHtml(p.code||''),escapeHtml(p.name),escapeHtml(p.category),escapeHtml(sellingPrice(p)),Number(p.stock||0),
         `<input type="number" min="1" max="1000" step="1" value="${labelSelection.get(p._ornelaId)||1}" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Quantidade de etiquetas de ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'':'disabled'} style="width:80px" onchange="changeCatalogLabelQty(this)">`
       ])):'<p>Nenhum produto encontrado.</p>';
+      const selectFiltered=document.getElementById('labelSelectFiltered');
+      if(selectFiltered){const selectedCount=list.filter(p=>labelSelection.has(p._ornelaId)).length;selectFiltered.checked=selectedCount===list.length;selectFiltered.indeterminate=selectedCount>0&&selectedCount<list.length;}
       document.getElementById('labelPrevious').disabled=labelPage===0;document.getElementById('labelNext').disabled=labelPage>=pages-1;
       document.getElementById('labelPageStatus').textContent=`Página ${labelPage+1} de ${pages}`;
       updateCatalogLabelsStatus();
