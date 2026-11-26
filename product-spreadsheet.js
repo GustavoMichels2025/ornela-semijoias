@@ -14,24 +14,24 @@
     const number = Number(text); return Number.isFinite(number) ? Math.round(number * 100) / 100 : NaN;
   }
   const formatMoney = value => Number(value).toFixed(2).replace('.', ',');
-  function validate(rows, existing = []) {
+  function validate(rows, existing = [], options = {}) {
     if (!rows.length) throw Error('A planilha está vazia.');
     const mapped = rows[0].map(h => aliases[normalize(h)] || null);
     for (const field of ['code','name','category','price']) if (!mapped.includes(field)) throw Error('Coluna obrigatória ausente: ' + headers[fields.indexOf(field)]);
     const repeated = mapped.filter((f, i) => f && mapped.indexOf(f) !== i);
     if (repeated.length) throw Error('Existem colunas repetidas no cabeçalho. Use o modelo do catálogo.');
     const known = new Set(existing.map(p => normalize(p.code)).filter(Boolean)), seen = new Set();
-    const records = [], errors = [], skipped = [];
+    const records = [], errors = [], skipped = [], updates = [], unchanged = [];
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i]; if (!row.some(v => String(v ?? '').trim())) continue;
-      if (records.length + skipped.length + errors.length >= 5000) throw Error('Importe até 5.000 linhas por arquivo.');
+      if (records.length + skipped.length + errors.length + updates.length + unchanged.length >= 5000) throw Error('Importe até 5.000 linhas por arquivo.');
       const data = {}; mapped.forEach((field, n) => { if(field) data[field] = String(row[n] ?? '').trim(); });
       const line = i + 1, fail = text => errors.push('Linha ' + line + ': ' + text);
       const code = normalize(data.code);
       if (!code || !data.name || !data.category) { fail('preencha Código, Nome e Categoria.'); continue; }
       if (/^[+-]?\d+(?:[.,]\d+)?e[+-]?\d+$/i.test(data.code)) { fail('o código está em notação científica. Formate a coluna Código como Texto.'); continue; }
       if (seen.has(code)) { fail('código repetido no arquivo: ' + data.code); continue; } seen.add(code);
-      if (known.has(code)) { skipped.push({ line, code: data.code }); continue; }
+      if (known.has(code) && !options.updateExisting) { skipped.push({ line, code: data.code }); continue; }
       const price = money(data.price), cost = money(data.costPrice), promo = money(data.promotionPrice);
       if (price === null || !Number.isFinite(price) || price <= 0) { fail('Preço deve ser um valor maior que zero.'); continue; }
       if ((cost !== null && !Number.isFinite(cost)) || (promo !== null && (!Number.isFinite(promo) || promo <= 0 || promo >= price))) { fail('confira Custo e Preço promocional (a promoção deve ser menor que o preço normal).'); continue; }
@@ -41,9 +41,20 @@
       if (!['sim','nao','true','false','1','0'].includes(visible)) { fail('Visível deve ser Sim ou Não.'); continue; }
       const tags = {novidade:'Novidade',maisvendido:'Mais vendido',promocao:'Promoção'};
       const tag = normalize(data.tag); if (tag && !tags[tag]) { fail('Destaque deve ser Novidade, Mais vendido, Promoção ou vazio.'); continue; }
-      records.push({code:data.code,name:data.name,description:data.description || '',category:data.category,price:formatMoney(price),costPrice:cost === null ? '' : formatMoney(cost),promotionPrice:promo === null ? '' : formatMoney(promo),stock,tag:tags[tag] || '',hidden:['nao','false','0'].includes(visible),image:'',images:[]});
+      const record = {code:data.code,name:data.name,description:data.description || '',category:data.category,price:formatMoney(price),costPrice:cost === null ? '' : formatMoney(cost),promotionPrice:promo === null ? '' : formatMoney(promo),stock,tag:tags[tag] || '',hidden:['nao','false','0'].includes(visible),image:'',images:[]};
+      if (known.has(code)) {
+        const matches = existing.filter(p => normalize(p.code) === code);
+        if (matches.length !== 1) { fail('código ambíguo no catálogo: ' + data.code); continue; }
+        const current = matches[0], changes = {};
+        for (const field of mapped) {
+          const key = field === 'visible' ? 'hidden' : field;
+          if (key && key !== 'code' && String(current[key] ?? '') !== String(record[key])) changes[key] = record[key];
+        }
+        if (Object.keys(changes).length) updates.push({targetId:current._ornelaId,code:current.code,changes,product:{...current,...changes}});
+        else unchanged.push({line,code:current.code});
+      } else records.push(record);
     }
-    return {records,errors,skipped};
+    return {records,errors,skipped,updates,unchanged};
   }
   function read(bytes, extension, XLSX) {
     if (!['xlsx','csv'].includes(extension)) throw Error('Escolha um arquivo .xlsx ou .csv. Arquivos .xls devem ser salvos como .xlsx.');
@@ -93,7 +104,8 @@
       ['Preço e Custo: 89,90 ou 89.90. Não use separador de milhares.'],
       ['Destaque: Novidade, Mais vendido, Promoção ou vazio.'],
       ['Visível: Sim ou Não. Vazio significa Sim.'],
-      ['Códigos já cadastrados serão ignorados, sem alterar preços, descrições, fotos ou estoque.'],
+      ['Ao enviar, escolha se deseja atualizar os códigos já cadastrados. Fotos e identidade dos produtos são preservadas.'],
+      ['Se confirmar atualização, o estoque da planilha substitui o saldo da vitrine; não será somado. Colunas vazias podem limpar dados opcionais.'],
       ['Códigos repetidos no mesmo arquivo devem ser corrigidos antes da importação.'],
       ['Limites: 5.000 produtos por arquivo e 10 MB.'],
       ['Fotos são opcionais: após importar, use Fotos para relacionar arquivos pelo código do produto.'],

@@ -52,3 +52,18 @@ test('Modelos Excel e CSV incluem todo o cadastro, sem filtrar ocultos ou saldo 
   assert.equal(csvRows[1][2],products[0].description);assert.equal(csvRows[2][0],'00013');
   assert.equal(importer.validate(csvRows,products).skipped.length,2);assert.equal(JSON.stringify(products),before);
 });
+test('Atualiza somente existentes com confirmação sem duplicar, preservando fotos e ID',()=>{
+  const current={_ornelaId:'id-1',code:'001010',name:'Nome antigo',description:'Texto antigo',category:'Anéis',price:'39,00',costPrice:'9,50',stock:4,images:['foto1','foto2'],image:'foto1',shareCode:'link123'};
+  const before=JSON.stringify(current);
+  const result=importer.validate([importer.headers,row({name:'Nome atualizado',price:'49,00',stock:'3'})],[current],{updateExisting:true});
+  assert.equal(result.errors.length,0);assert.equal(result.records.length,0);assert.equal(result.updates.length,1);
+  const update=result.updates[0];assert.equal(update.product._ornelaId,'id-1');assert.equal(update.product.shareCode,'link123');assert.deepEqual(update.product.images,['foto1','foto2']);assert.equal(update.product.stock,3);assert.equal(update.product.name,'Nome atualizado');assert.equal(JSON.stringify(current),before);
+  assert.ok(!('images' in update.changes));assert.ok(!('code' in update.changes));
+});
+test('Arquivo sem diferenças não cria atualização e colunas ausentes não apagam dados',()=>{
+  const p=importer.validate([importer.headers,row()]).records[0];
+  const same=importer.validate([importer.headers,row()],[p],{updateExisting:true});assert.equal(same.updates.length,0);assert.equal(same.unchanged.length,1);
+  const partial=importer.validate([['Código','Nome','Categoria','Preço'],['001010','Novo nome','Anéis','59,00']],[p],{updateExisting:true});
+  assert.equal(partial.updates[0].product.stock,2);assert.equal(partial.updates[0].product.description,'Peça delicada');
+  assert.ok(importer.validate([importer.headers,row({stock:'-1'})],[p],{updateExisting:true}).errors.length);
+});

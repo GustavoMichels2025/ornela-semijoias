@@ -3237,14 +3237,14 @@
 
       <div class="admin-box" data-admin-panel="products">
         <h3>Importar produtos por Excel ou CSV</h3>
-        <p>Baixe o modelo com todos os produtos cadastrados, acrescente os novos nas próximas linhas e envie o arquivo para conferir antes de salvar. As fotos podem ser adicionadas depois, na aba Fotos, usando o mesmo código do produto.</p>
+        <p>Baixe o modelo com todos os produtos cadastrados, faça ajustes em massa ou acrescente novos produtos e envie para conferir antes de salvar. Ao reenviar, escolha se deseja atualizar os códigos existentes. Fotos podem ser adicionadas depois, na aba Fotos.</p>
         <div class="xml-actions">
           <button class="btn btn-light" type="button" id="downloadProductXlsx">Baixar modelo Excel</button>
           <button class="btn btn-light" type="button" id="downloadProductCsv">Baixar modelo CSV</button>
           <label for="productSpreadsheetFile">Enviar planilha (.xlsx ou .csv)</label>
           <input type="file" id="productSpreadsheetFile" accept=".xlsx,.csv">
         </div>
-        <p style="font-size:12px;color:var(--muted)">Obrigatórios: Código, Nome, Categoria e Preço. Estoque vazio = 0. Use código em formato Texto para preservar zeros iniciais. Códigos já cadastrados serão ignorados: esta importação não altera nem soma os saldos existentes. Até 5.000 linhas e 10 MB por arquivo.</p>
+        <p style="font-size:12px;color:var(--muted)">Obrigatórios: Código, Nome, Categoria e Preço. Estoque vazio = 0. Use código em formato Texto para preservar zeros iniciais. Ao enviar, você poderá autorizar alterações nos códigos existentes. Nesse caso, o estoque da planilha substitui o saldo da vitrine, sem somar; campos opcionais vazios podem apagar os valores anteriores. Fotos, pedidos e estoque das revendedoras são preservados. Até 5.000 linhas e 10 MB por arquivo.</p>
         <p id="productSpreadsheetStatus" role="status" style="white-space:pre-line"></p>
         <div id="productSpreadsheetPreview"></div>
         <button class="btn btn-primary" type="button" id="confirmProductSpreadsheet" disabled>Confirmar importação e salvar no banco</button>
@@ -6801,13 +6801,13 @@
     }
     document.getElementById('downloadProductXlsx').onclick = async () => {
       const status = document.getElementById('productSpreadsheetStatus');
-      try { if (!adminDataReady) throw Error('Entre no painel e aguarde o carregamento dos produtos antes de baixar.'); const xlsx = await loadSpreadsheetLibrary(); const bytes = xlsx.write(OrnelaSpreadsheet.template(xlsx, products), {bookType:'xlsx',type:'array'}); downloadSpreadsheetBlob(new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'Modelo_Produtos_Ornela.xlsx'); status.textContent = `Modelo Excel baixado com ${products.length} produto(s), incluindo ocultos e sem estoque. Acrescente novos produtos nas linhas seguintes. Os códigos existentes serão mantidos sem alterações na importação.`; }
+      try { if (!adminDataReady) throw Error('Entre no painel e aguarde o carregamento dos produtos antes de baixar.'); const xlsx = await loadSpreadsheetLibrary(); const bytes = xlsx.write(OrnelaSpreadsheet.template(xlsx, products), {bookType:'xlsx',type:'array'}); downloadSpreadsheetBlob(new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'Modelo_Produtos_Ornela.xlsx'); status.textContent = `Modelo Excel baixado com ${products.length} produto(s), incluindo ocultos e sem estoque. Edite os dados ou acrescente produtos. Ao reenviar, você poderá autorizar a atualização dos códigos existentes.`; }
       catch(error) { status.textContent = error.message; }
     };
     document.getElementById('downloadProductCsv').onclick = () => {
       if (!adminDataReady) { document.getElementById('productSpreadsheetStatus').textContent = 'Entre no painel e aguarde o carregamento dos produtos antes de baixar.'; return; }
       downloadSpreadsheetBlob(new Blob([OrnelaSpreadsheet.csv(products)], {type:'text/csv;charset=utf-8'}), 'Modelo_Produtos_Ornela.csv');
-      document.getElementById('productSpreadsheetStatus').textContent = `Modelo CSV baixado com ${products.length} produto(s), incluindo ocultos e sem estoque. Mantenha o cabeçalho e acrescente novos produtos nas linhas seguintes. Códigos existentes não serão alterados.`;
+      document.getElementById('productSpreadsheetStatus').textContent = `Modelo CSV baixado com ${products.length} produto(s). Mantenha o cabeçalho, edite ou acrescente produtos. Ao reenviar, você poderá autorizar a atualização dos códigos existentes.`;
     };
     document.getElementById('productSpreadsheetFile').onchange = async event => {
       const file = event.target.files[0], status = document.getElementById('productSpreadsheetStatus'), preview = document.getElementById('productSpreadsheetPreview'), button = document.getElementById('confirmProductSpreadsheet');
@@ -6817,14 +6817,17 @@
         if (file.size > 10 * 1024 * 1024) throw Error('O arquivo deve ter no máximo 10 MB.');
         const xlsx = await loadSpreadsheetLibrary();
         const rows = OrnelaSpreadsheet.read(await file.arrayBuffer(), file.name.split('.').pop().toLowerCase(), xlsx);
-        const result = OrnelaSpreadsheet.validate(rows, products);
-        status.textContent = `${result.records.length} produto(s) novo(s). ${result.skipped.length} código(s) já cadastrado(s), que serão mantidos sem alterações.`;
+        let result = OrnelaSpreadsheet.validate(rows, products);
+        const updateExisting = Boolean(result.skipped.length) && confirm(`A planilha contém ${result.skipped.length} código(s) já cadastrado(s). Deseja alterar os dados desses produtos?\n\nSIM (OK): atualiza as colunas da planilha, preservando fotos e identidade. O estoque informado SUBSTITUI o saldo da vitrine, sem somar. Campos opcionais vazios podem limpar dados. Não altera pedidos nem estoque das revendedoras.\n\nCANCELAR: mantém os produtos existentes e importa apenas os novos.\n\nVocê ainda conferirá a prévia antes de confirmar e salvar.`);
+        if (updateExisting) result = OrnelaSpreadsheet.validate(rows, products, {updateExisting:true});
+        status.textContent = `${result.records.length} produto(s) novo(s), ${result.updates.length} para atualizar, ${result.unchanged.length} sem alterações e ${result.skipped.length} ignorado(s).`;
         if (result.skipped.length) status.textContent += '\nIgnorados: ' + result.skipped.slice(0,20).map(p=>p.code).join(', ') + (result.skipped.length > 20 ? '…' : '');
         if (result.errors.length) { status.textContent += '\nCorrija os erros antes de importar:\n' + result.errors.slice(0,30).join('\n'); return; }
-        if (!result.records.length) { status.textContent += '\nNenhum produto novo para importar.'; return; }
-        preview.innerHTML = panelSheet(['Código','Nome','Categoria','Preço R$','Estoque','Visível'], result.records.slice(0,20).map(p=>[escapeHtml(p.code),escapeHtml(p.name),escapeHtml(p.category),escapeHtml(p.price),p.stock,p.hidden?'Não':'Sim']));
-        if (result.records.length > 20) status.textContent += '\nPrévia dos primeiros 20 produtos; todos os produtos válidos serão cadastrados.';
-        spreadsheetDraft = {rows,applied:false,count:0}; button.textContent = 'Confirmar importação e salvar no banco'; button.disabled = false;
+        const planned = [...result.updates.map(u=>({product:u.product,operation:'Atualizar',changes:Object.keys(u.changes).join(', ')})), ...result.records.map(product=>({product,operation:'Novo',changes:'Novo cadastro'}))];
+        if (!planned.length) { status.textContent += '\nNenhuma alteração para salvar.'; return; }
+        preview.innerHTML = panelSheet(['Ação','Código','Nome','Categoria','Preço R$','Estoque','Visível','Campos alterados'], planned.slice(0,20).map(({product:p,operation,changes})=>[operation,escapeHtml(p.code),escapeHtml(p.name),escapeHtml(p.category),escapeHtml(p.price),p.stock,p.hidden?'Não':'Sim',escapeHtml(changes)]));
+        if (planned.length > 20) status.textContent += '\nPrévia dos primeiros 20 produtos; todas as alterações válidas serão aplicadas ao confirmar.';
+        spreadsheetDraft = {rows,updateExisting,applied:false,count:0,updated:0}; button.textContent = 'Confirmar importação e salvar no banco'; button.disabled = false;
       } catch(error) { status.textContent = error.message || 'Não foi possível ler o arquivo. Use o modelo do catálogo.'; }
       finally { input.disabled = false; }
     };
@@ -6835,19 +6838,23 @@
       try {
         if (!stateReady || !adminDataReady || !sessionStorage.getItem(ADMIN_TOKEN_KEY)) throw Error('Entre novamente no painel administrativo antes de importar.');
         if (!spreadsheetDraft.applied) {
-          const result = OrnelaSpreadsheet.validate(spreadsheetDraft.rows, products);
+          const result = OrnelaSpreadsheet.validate(spreadsheetDraft.rows, products, {updateExisting:spreadsheetDraft.updateExisting});
           if (result.errors.length) throw Error(result.errors.join('\n'));
-          if (!result.records.length) throw Error('Todos os códigos já estão cadastrados. Nenhum saldo foi alterado.');
+          if (!result.records.length && !result.updates.length) throw Error('Não há alterações pendentes para salvar.');
+          for (const update of result.updates) {
+            const product = products.find(p=>update.targetId ? p._ornelaId===update.targetId : OrnelaSpreadsheet.normalize(p.code)===OrnelaSpreadsheet.normalize(update.code));
+            Object.assign(product, update.changes);
+          }
           for (const product of result.records) products.push({...product,_ornelaId:makeId('produto')});
-          spreadsheetDraft.applied = true; spreadsheetDraft.count = result.records.length;
+          spreadsheetDraft.applied = true; spreadsheetDraft.count = result.records.length; spreadsheetDraft.updated = result.updates.length;
           ensureProductIds();
         }
-        status.textContent = 'Salvando os novos produtos no banco…';
+        status.textContent = 'Salvando os produtos e alterações no banco…';
         await saveAppStateNow();
-        const count = spreadsheetDraft.count; spreadsheetDraft = null;
+        const count = spreadsheetDraft.count, updated = spreadsheetDraft.updated; spreadsheetDraft = null;
         refreshProductCategorySelect(); renderCategories(); renderProducts(); renderResellers();
         document.getElementById('productSpreadsheetPreview').innerHTML = ''; input.value = '';
-        status.textContent = `${count} produto(s) cadastrado(s) e salvo(s) no banco. Agora use a aba Fotos para enviar a pasta de imagens e relacionar pelo código.`;
+        status.textContent = `${count} produto(s) novo(s) e ${updated} atualizado(s), salvos no banco. Fotos existentes preservadas. Para peças novas, use a aba Fotos para relacionar imagens pelo código.`;
         button.textContent = 'Confirmar importação e salvar no banco';
       } catch(error) {
         status.textContent = error.message + (spreadsheetDraft?.applied ? '\nOs novos registros foram preservados neste painel. Clique em Tentar salvar novamente; não é necessário reenviar a planilha.' : '');
