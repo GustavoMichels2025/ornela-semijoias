@@ -2804,6 +2804,24 @@
     .ornela-music-dropdown { position:absolute; top:calc(100% + 8px); right:0; width:320px; max-width:calc(100vw - 32px); padding:8px; margin:0; background:#fffdf9; border:1px solid #e4d9c6; border-radius:12px; box-shadow:0 10px 28px rgba(48,40,32,.18); z-index:30; }
     #spotifyLink[aria-expanded="true"] { background:#e6dccb; box-shadow:inset 0 0 0 1px #b89a65; }
     .nav-actions .ornela-music-dropdown .btn { width:auto; min-height:24px; }
+    #catalogLabelsList .panel-sheet { table-layout:fixed; min-width:900px; font-size:11px; }
+    #catalogLabelsList .panel-sheet th, #catalogLabelsList .panel-sheet td { padding:8px 10px; vertical-align:middle; line-height:1.4; }
+    #catalogLabelsList .panel-sheet th { white-space:normal; font-size:10px; }
+    #catalogLabelsList .panel-sheet th:nth-child(1) { width:85px; }
+    #catalogLabelsList .panel-sheet th:nth-child(2) { width:145px; }
+    #catalogLabelsList .panel-sheet th:nth-child(4) { width:125px; }
+    #catalogLabelsList .panel-sheet th:nth-child(5) { width:110px; }
+    #catalogLabelsList .panel-sheet th:nth-child(6) { width:70px; }
+    #catalogLabelsList .panel-sheet th:nth-child(7) { width:100px; }
+    #catalogLabelsList .panel-sheet td:nth-child(2) { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; white-space:normal; }
+    #catalogLabelsList .panel-sheet td:nth-child(3), #catalogLabelsList .panel-sheet td:nth-child(4) { white-space:normal; overflow-wrap:anywhere; }
+    #catalogLabelsList .panel-sheet td:nth-child(3) { font-weight:600; }
+    #catalogLabelsList .panel-sheet th:nth-child(1), #catalogLabelsList .panel-sheet td:nth-child(1), #catalogLabelsList .panel-sheet th:nth-child(6), #catalogLabelsList .panel-sheet td:nth-child(6), #catalogLabelsList .panel-sheet th:nth-child(7), #catalogLabelsList .panel-sheet td:nth-child(7) { text-align:center; }
+    #catalogLabelsList .panel-sheet td:nth-child(5) { text-align:right; font-variant-numeric:tabular-nums; }
+    #catalogLabelsList input[type="checkbox"] { display:inline-block; width:16px; height:16px; min-width:16px; min-height:16px; padding:0; margin:0; accent-color:#806225; cursor:pointer; vertical-align:middle; }
+    #catalogLabelsList input[type="number"] { width:70px!important; min-width:0; min-height:30px; padding:5px; text-align:center; font:inherit; }
+    #catalogLabelsList .label-select-all { display:inline-flex; flex-direction:column; align-items:center; gap:4px; margin:0; font-size:10px; line-height:1.2; color:#302820; cursor:pointer; }
+    #catalogLabelsList tbody tr:has(input[type="checkbox"]:checked) { background:#f1eadb; }
   </style>
 </head>
 
@@ -5641,11 +5659,13 @@
       if ([...category.options].some(o=>o.value===current)) category.value=current;
       for (const id of labelSelection.keys()) if (!products.some(p=>p._ornelaId===id)) { labelSelection.delete(id); invalidateCatalogLabels(); }
       const list=labelProductsFiltered(), pages=Math.max(1,Math.ceil(list.length/80));labelPage=Math.max(0,Math.min(labelPage,pages-1));
-      document.getElementById('catalogLabelsList').innerHTML=list.length?panelSheet(['<label style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><input id="labelSelectFiltered" type="checkbox" aria-label="Selecionar todos os itens filtrados, em todas as páginas" onchange="selectCatalogLabels(this.checked)">Selecionar todos</label>','Código','Produto','Categoria','Preço da etiqueta R$','Estoque','Qtd. etiquetas'],list.slice(labelPage*80,(labelPage+1)*80).map(p=>[
+      document.getElementById('catalogLabelsList').innerHTML=list.length?panelSheet(['Selecionar','Código','Produto','Categoria','Preço R$','Estoque','Qtd. etiquetas'],list.slice(labelPage*80,(labelPage+1)*80).map(p=>[
         `<input type="checkbox" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Selecionar ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'checked':''} onchange="if(this.checked)labelSelection.set(this.dataset.productId,1);else labelSelection.delete(this.dataset.productId);invalidateCatalogLabels();renderCatalogLabels()">`,
         escapeHtml(p.code||''),escapeHtml(p.name),escapeHtml(p.category),escapeHtml(sellingPrice(p)),Number(p.stock||0),
         `<input type="number" min="1" max="1000" step="1" value="${labelSelection.get(p._ornelaId)||1}" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Quantidade de etiquetas de ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'':'disabled'} style="width:80px" onchange="changeCatalogLabelQty(this)">`
       ])):'<p>Nenhum produto encontrado.</p>';
+      const selectionHeader=document.querySelector('#catalogLabelsList thead th');
+      if(selectionHeader)selectionHeader.innerHTML='<label class="label-select-all"><input id="labelSelectFiltered" type="checkbox" aria-label="Selecionar todos os itens filtrados, em todas as páginas" onchange="selectCatalogLabels(this.checked)"><span>Selecionar todos</span></label>';
       const selectFiltered=document.getElementById('labelSelectFiltered');
       if(selectFiltered){const selectedCount=list.filter(p=>labelSelection.has(p._ornelaId)).length;selectFiltered.checked=selectedCount===list.length;selectFiltered.indeterminate=selectedCount>0&&selectedCount<list.length;}
       document.getElementById('labelPrevious').disabled=labelPage===0;document.getElementById('labelNext').disabled=labelPage>=pages-1;
