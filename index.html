@@ -3214,6 +3214,12 @@
         <h3>Etiquetas Ornela</h3>
         <p>Gere etiquetas dos produtos do catálogo, individualmente ou em massa. Usa o código, nome e preço atual da vitrine, inclusive Promoção e Black Friday. Não altera estoques.</p>
         <div class="xml-actions">
+          <label for="labelXmlFile">Upload da nota fiscal XML</label>
+          <input id="labelXmlFile" type="file" accept=".xml,application/xml,text/xml">
+          <button class="btn btn-primary" type="button" onclick="importCatalogLabelXml(this)">Importar nota fiscal</button>
+        </div>
+        <p id="labelXmlStatus" role="status" style="font-size:12px;white-space:pre-line;color:var(--muted)">O XML seleciona produtos cadastrados e usa a quantidade da nota para as etiquetas. Os nomes e preços são os atuais do catálogo. Não cadastra produtos nem altera saldos.</p>
+        <div class="xml-actions">
           <input id="labelProductSearch" type="search" placeholder="Buscar código ou nome" aria-label="Buscar produtos para etiquetas" oninput="labelPage=0;renderCatalogLabels()">
           <select id="labelCategory" aria-label="Filtrar categoria das etiquetas" onchange="labelPage=0;renderCatalogLabels()"><option value="">Todas as categorias</option></select>
           <label><input id="labelInStock" type="checkbox" onchange="labelPage=0;renderCatalogLabels()"> Somente com estoque</label>
@@ -5638,6 +5644,31 @@
 
     const labelSelection = new Map();
     let labelPage = 0;
+    async function importCatalogLabelXml(button) {
+      const file=document.getElementById('labelXmlFile').files[0], status=document.getElementById('labelXmlStatus');
+      if(!file){status.textContent='Selecione um arquivo XML da nota fiscal.';return;}
+      button.disabled=true;
+      try {
+        if(!adminDataReady)throw Error('Entre no painel e aguarde o carregamento do catálogo.');
+        if(file.size>10*1024*1024)throw Error('O XML deve ter no máximo 10 MB.');
+        const xml=new DOMParser().parseFromString(await file.text(),'application/xml');
+        if(xml.getElementsByTagName('parsererror').length||xml.getElementsByTagNameNS('*','parsererror').length)throw Error('XML inválido. Escolha uma nota fiscal NF-e válida.');
+        const entries=[...xml.getElementsByTagNameNS('*','det')].map(det=>{
+          const prod=[...det.children].find(node=>node.localName==='prod');
+          return prod?{code:getTextByLocalName(prod,'cProd'),qty:Number(getTextByLocalName(prod,'qCom'))}:null;
+        }).filter(Boolean);
+        if(!entries.length)throw Error('Não foram encontrados itens de NF-e neste XML.');
+        const result=OrnelaLabels.matchXmlItems(products,entries);
+        const details=(result.missing.length?'\nNão cadastrados: '+result.missing.slice(0,20).join(', ')+'. Cadastre-os na aba XML ou Produtos primeiro.':'')+(result.ambiguous.length?'\nCódigos com mais de um cadastro: '+result.ambiguous.slice(0,20).join(', ')+'. Selecione esses produtos manualmente.':'');
+        if(!result.selected.size){status.textContent='Nenhum item pôde ser selecionado.'+details;return;}
+        const total=[...result.selected.values()].reduce((sum,n)=>sum+n,0);
+        if(!confirm(`Selecionar ${result.selected.size} produto(s) e ${total} etiqueta(s) pelos itens desta nota?\n\nA seleção atual será substituída. Serão usados os nomes e preços do catálogo, não o custo da nota. Nenhum estoque será alterado.${details}`)){status.textContent='Importação cancelada. A seleção anterior foi mantida.';return;}
+        labelSelection.clear();for(const [id,qty] of result.selected)labelSelection.set(id,qty);
+        document.getElementById('labelProductSearch').value='';document.getElementById('labelCategory').value='';document.getElementById('labelInStock').checked=false;document.getElementById('labelVisible').checked=false;
+        labelPage=0;invalidateCatalogLabels();renderCatalogLabels();
+        status.textContent=`Nota relacionada: ${result.selected.size} produto(s) selecionado(s), ${total} etiqueta(s). Confira a seleção e clique em Gerar prévia dos selecionados. Nenhum estoque foi alterado.`+details;
+      }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+    }
     function labelProductsFiltered() {
       const query = normalizeCode(document.getElementById('labelProductSearch').value);
       const category = document.getElementById('labelCategory').value;

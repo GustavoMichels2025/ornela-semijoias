@@ -1,5 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const labels=require('../catalog-labels');
+test('XML seleciona por código atual ou origem, soma linhas da nota sem alterar estoque',()=>{
+  const products=[{_ornelaId:'a',code:'001',stock:3},{_ornelaId:'b',code:'002-0001',sourceCode:'002',stock:1},{_ornelaId:'c',code:'003-0001',sourceCode:'003'},{_ornelaId:'d',code:'003-0002',sourceCode:'003'}];
+  const before=JSON.stringify(products), result=labels.matchXmlItems(products,[{code:'001',qty:2},{code:'001',qty:1},{code:'002',qty:4},{code:'003',qty:1},{code:'999',qty:1}]);
+  assert.equal(result.selected.get('a'),3);assert.equal(result.selected.get('b'),4);assert.deepEqual(result.ambiguous,['003']);assert.deepEqual(result.missing,['999']);assert.equal(JSON.stringify(products),before);
+  assert.throws(()=>labels.matchXmlItems(products,[{code:'001',qty:1.5}]),/inteira/);
+});
 test('Geração em massa respeita quantidade, preço de venda e não altera estoque',()=>{
   const products=[{_ornelaId:'a',code:'0001',name:'Nome editado',price:'89,00',promotionPrice:'69,00',stock:4},{_ornelaId:'b',code:'0002',name:'Brinco',price:'39,00',stock:0}];
   const before=JSON.stringify(products);
