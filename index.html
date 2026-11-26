@@ -1710,8 +1710,10 @@
 
     .admin-tabs {
       display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 6px;
+      flex-wrap: nowrap;
+      align-items: center;
+      overflow-x: auto;
       margin: 0 0 18px;
       padding: 10px;
       border-radius: 24px;
@@ -1730,6 +1732,12 @@
       align-items: center;
       gap: 9px;
       padding-left: 8px;
+      flex: 0 0 auto;
+      position: sticky;
+      right: 0;
+      background: #fffdf9;
+      border-radius: 999px;
+      z-index: 1;
     }
 
     .admin-save-all {
@@ -1754,11 +1762,13 @@
     .admin-tab {
       border: 1px solid rgba(201,162,77,.22);
       background: #fffaf2;
-      color: var(--ink);
+      color: #302820;
       border-radius: 999px;
-      padding: 11px 15px;
+      padding: 10px 11px;
       font-family: "Montserrat", Arial, Helvetica, sans-serif;
-      font-size: 13px;
+      font-size: 12px;
+      white-space: nowrap;
+      flex: 0 0 auto;
       font-weight: 700;
       cursor: pointer;
       transition: .18s ease;
@@ -1766,11 +1776,14 @@
 
     .admin-tab:hover,
     .admin-tab.active {
-      background: var(--ink);
-      color: #fff;
-      border-color: var(--ink);
-      transform: translateY(-1px);
+      background: #e6dccb;
+      color: #302820;
+      border-color: #b89a65;
+      box-shadow: inset 0 1px 4px rgba(70,50,25,.12), 0 2px 5px rgba(70,50,25,.08);
+      transform: none;
     }
+    .admin-tab.active { outline: 1px solid #b89a65; outline-offset: -2px; }
+    .admin-tab:focus-visible { outline: 2px solid #806225; outline-offset: -3px; }
 
     [data-admin-panel] {
       display: none;
@@ -2508,8 +2521,8 @@
       .whatsapp-float { right: 12px; bottom: 16px; width: 54px; height: 54px; }
       .cart-panel { right: 10px; bottom: 145px; width: calc(100vw - 20px); max-height: 66vh; border-radius: 22px; }
       .admin-shell-head { align-items: flex-start; flex-direction: column; }
-      .admin-save-cluster { width: 100%; margin-left: 0; padding-left: 0; order: -1; }
-      .admin-save-all { flex: 1; }
+      .admin-save-cluster { width: auto; margin-left: auto; padding-left: 6px; order: 0; }
+      .admin-save-all { flex: 0 0 auto; padding: 10px 12px; }
       .admin-box { padding: 18px; border-radius: 22px; overflow-x: auto; }
       .security-row { grid-template-columns: 1fr; }
       .login-card { padding: 26px; }
@@ -2882,9 +2895,9 @@
         <button class="admin-tab" type="button" data-admin-tab="security">Segurança</button>
         <div class="admin-save-cluster">
           <button class="admin-save-all" type="button" id="saveAllChanges">Salvar alterações</button>
-          <span class="admin-save-status" id="saveAllStatus">Salva produtos, fotos e demais alterações no banco.</span>
         </div>
       </div>
+      <p class="admin-save-status" id="saveAllStatus" role="status" style="max-width:none;margin:-8px 0 14px">Salva produtos, fotos e demais alterações no banco.</p>
 
       <div class="admin-box active" data-admin-panel="dashboard">
         <h3>Dashboard</h3>
@@ -5563,6 +5576,7 @@
     function switchAdminTab(tabName) {
       document.querySelectorAll("[data-admin-tab]").forEach(button => {
         button.classList.toggle("active", button.dataset.adminTab === tabName);
+        button.setAttribute('aria-pressed', String(button.dataset.adminTab === tabName));
       });
 
       document.querySelectorAll("[data-admin-panel]").forEach(panel => {
