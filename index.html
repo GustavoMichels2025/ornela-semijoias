@@ -2798,6 +2798,11 @@
     .hero .eyebrow { min-height: 0; margin-bottom: 0; padding: 4px 12px; }
     .hero h2 { margin-bottom: 0; line-height: 1.1; }
     .hero p { margin-bottom: 0; line-height: 1.45; }
+    header { overflow: visible; }
+    .nav-actions { position: relative; }
+    .ornela-music-dropdown { position:absolute; top:calc(100% + 8px); right:0; width:320px; max-width:calc(100vw - 32px); padding:8px; margin:0; background:#fffdf9; border:1px solid #e4d9c6; border-radius:12px; box-shadow:0 10px 28px rgba(48,40,32,.18); z-index:30; }
+    #spotifyLink[aria-expanded="true"] { background:#e6dccb; box-shadow:inset 0 0 0 1px #b89a65; }
+    .nav-actions .ornela-music-dropdown .btn { width:auto; min-height:24px; }
   </style>
 </head>
 
@@ -2819,9 +2824,7 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg>
         </button>
         <button class="btn btn-light" type="button" id="toggleAdmin">Acesso administrativo</button>
-      </div>
-    </nav>
-    <section id="ornelaMusic" hidden aria-label="Playlist da Ornela" style="width:min(320px,calc(100% - 24px));margin:0 auto 6px">
+    <section id="ornelaMusic" class="ornela-music-dropdown" hidden aria-label="Playlist da Ornela">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;font-size:10px">
         <span>♫ Playlist Ornela</span>
         <button type="button" class="btn btn-light" onclick="toggleOrnelaMusic(false)" aria-label="Fechar e desligar música" title="Fechar e desligar música" style="padding:2px 8px;min-height:24px;font-size:14px">×</button>
@@ -2829,6 +2832,8 @@
       <div id="ornelaMusicPlayer"></div>
       <small style="display:block;font-size:9px;line-height:1.2;color:var(--muted)">Player Spotify · Ao abrir, sua conexão é compartilhada com o serviço.</small>
     </section>
+      </div>
+    </nav>
   </header>
 
   <main>
