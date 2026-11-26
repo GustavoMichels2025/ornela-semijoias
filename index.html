@@ -5669,7 +5669,7 @@
         `<input type="number" min="1" max="1000" step="1" value="${labelSelection.get(p._ornelaId)||1}" data-product-id="${escapeHtml(p._ornelaId)}" aria-label="Quantidade de etiquetas de ${escapeHtml(p.name)}" ${labelSelection.has(p._ornelaId)?'':'disabled'} style="width:80px" onchange="changeCatalogLabelQty(this)">`
       ])):'<p>Nenhum produto encontrado.</p>';
       const selectionHeader=document.querySelector('#catalogLabelsList thead th');
-      if(selectionHeader)selectionHeader.innerHTML='<label class="label-select-all"><input id="labelSelectFiltered" type="checkbox" aria-label="Selecionar todos os itens filtrados, em todas as páginas" onchange="selectCatalogLabels(this.checked)"><span>Selecionar todos</span></label>';
+      if(selectionHeader)selectionHeader.innerHTML='<label class="label-select-all"><input id="labelSelectFiltered" type="checkbox" aria-label="Selecionar todos os itens filtrados, em todas as páginas" onchange="selectCatalogLabels(this.checked)"><span>Todos</span></label>';
       const selectFiltered=document.getElementById('labelSelectFiltered');
       if(selectFiltered){const selectedCount=list.filter(p=>labelSelection.has(p._ornelaId)).length;selectFiltered.checked=selectedCount===list.length;selectFiltered.indeterminate=selectedCount>0&&selectedCount<list.length;}
       document.getElementById('labelPrevious').disabled=labelPage===0;document.getElementById('labelNext').disabled=labelPage>=pages-1;
