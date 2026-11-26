@@ -10,6 +10,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="/state-merge.js"></script>
   <script src="/reseller-cycles.js"></script>
+  <script src="/product-spreadsheet.js"></script>
 
   <style>
     :root {
@@ -3235,6 +3236,19 @@
       </div>
 
       <div class="admin-box" data-admin-panel="products">
+        <h3>Importar produtos por Excel ou CSV</h3>
+        <p>Baixe o modelo, preencha os produtos e envie o arquivo para conferir antes de salvar. As fotos podem ser adicionadas depois, na aba Fotos, usando o mesmo código do produto.</p>
+        <div class="xml-actions">
+          <button class="btn btn-light" type="button" id="downloadProductXlsx">Baixar modelo Excel</button>
+          <button class="btn btn-light" type="button" id="downloadProductCsv">Baixar modelo CSV</button>
+          <label for="productSpreadsheetFile">Enviar planilha (.xlsx ou .csv)</label>
+          <input type="file" id="productSpreadsheetFile" accept=".xlsx,.csv">
+        </div>
+        <p style="font-size:12px;color:var(--muted)">Obrigatórios: Código, Nome, Categoria e Preço. Estoque vazio = 0. Use código em formato Texto para preservar zeros iniciais. Códigos já cadastrados serão ignorados: esta importação não altera nem soma os saldos existentes. Até 5.000 linhas e 10 MB por arquivo.</p>
+        <p id="productSpreadsheetStatus" role="status" style="white-space:pre-line"></p>
+        <div id="productSpreadsheetPreview"></div>
+        <button class="btn btn-primary" type="button" id="confirmProductSpreadsheet" disabled>Confirmar importação e salvar no banco</button>
+        <hr style="margin:24px 0;border:0;border-top:1px solid #e5dfd5">
         <h3>Cadastrar produto avulso</h3>
         <p>
           Use quando quiser incluir uma peça sem XML, ajustar uma novidade ou testar um produto antes de publicar.
@@ -6769,6 +6783,77 @@
       productCategorySelect.value = "__new__";
       updateNewCategoryVisibility(true);
     });
+
+    let spreadsheetLibraryPromise = null, spreadsheetDraft = null;
+    function loadSpreadsheetLibrary() {
+      if (window.XLSX) return Promise.resolve(window.XLSX);
+      if (!spreadsheetLibraryPromise) spreadsheetLibraryPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script'); script.src = '/assets/xlsx.full.min.js';
+        script.onload = () => resolve(window.XLSX);
+        script.onerror = () => { spreadsheetLibraryPromise = null; script.remove(); reject(Error('Não foi possível carregar o leitor de planilhas. Atualize a página e tente novamente.')); };
+        document.head.appendChild(script);
+      });
+      return spreadsheetLibraryPromise;
+    }
+    function downloadSpreadsheetBlob(blob, name) {
+      const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    document.getElementById('downloadProductXlsx').onclick = async () => {
+      const status = document.getElementById('productSpreadsheetStatus');
+      try { const xlsx = await loadSpreadsheetLibrary(); const bytes = xlsx.write(OrnelaSpreadsheet.template(xlsx), {bookType:'xlsx',type:'array'}); downloadSpreadsheetBlob(new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'Modelo_Produtos_Ornela.xlsx'); status.textContent = 'Modelo Excel baixado. Preencha a aba Produtos; as orientações estão na aba Instruções.'; }
+      catch(error) { status.textContent = error.message; }
+    };
+    document.getElementById('downloadProductCsv').onclick = () => {
+      downloadSpreadsheetBlob(new Blob(['\uFEFF' + OrnelaSpreadsheet.headers.join(';') + '\r\n'], {type:'text/csv;charset=utf-8'}), 'Modelo_Produtos_Ornela.csv');
+      document.getElementById('productSpreadsheetStatus').textContent = 'Modelo CSV baixado. Mantenha a primeira linha e separe as colunas por ponto e vírgula.';
+    };
+    document.getElementById('productSpreadsheetFile').onchange = async event => {
+      const file = event.target.files[0], status = document.getElementById('productSpreadsheetStatus'), preview = document.getElementById('productSpreadsheetPreview'), button = document.getElementById('confirmProductSpreadsheet');
+      spreadsheetDraft = null; preview.innerHTML = ''; button.disabled = true; if (!file) return;
+      const input = event.target; input.disabled = true; status.textContent = 'Lendo e conferindo a planilha…';
+      try {
+        if (file.size > 10 * 1024 * 1024) throw Error('O arquivo deve ter no máximo 10 MB.');
+        const xlsx = await loadSpreadsheetLibrary();
+        const rows = OrnelaSpreadsheet.read(await file.arrayBuffer(), file.name.split('.').pop().toLowerCase(), xlsx);
+        const result = OrnelaSpreadsheet.validate(rows, products);
+        status.textContent = `${result.records.length} produto(s) novo(s). ${result.skipped.length} código(s) já cadastrado(s), que serão mantidos sem alterações.`;
+        if (result.skipped.length) status.textContent += '\nIgnorados: ' + result.skipped.slice(0,20).map(p=>p.code).join(', ') + (result.skipped.length > 20 ? '…' : '');
+        if (result.errors.length) { status.textContent += '\nCorrija os erros antes de importar:\n' + result.errors.slice(0,30).join('\n'); return; }
+        if (!result.records.length) { status.textContent += '\nNenhum produto novo para importar.'; return; }
+        preview.innerHTML = panelSheet(['Código','Nome','Categoria','Preço R$','Estoque','Visível'], result.records.slice(0,20).map(p=>[escapeHtml(p.code),escapeHtml(p.name),escapeHtml(p.category),escapeHtml(p.price),p.stock,p.hidden?'Não':'Sim']));
+        if (result.records.length > 20) status.textContent += '\nPrévia dos primeiros 20 produtos; todos os produtos válidos serão cadastrados.';
+        spreadsheetDraft = {rows,applied:false,count:0}; button.textContent = 'Confirmar importação e salvar no banco'; button.disabled = false;
+      } catch(error) { status.textContent = error.message || 'Não foi possível ler o arquivo. Use o modelo do catálogo.'; }
+      finally { input.disabled = false; }
+    };
+    document.getElementById('confirmProductSpreadsheet').onclick = async event => {
+      if (!spreadsheetDraft) return;
+      const button = event.currentTarget, input = document.getElementById('productSpreadsheetFile'), status = document.getElementById('productSpreadsheetStatus');
+      button.disabled = true; input.disabled = true;
+      try {
+        if (!stateReady || !adminDataReady || !sessionStorage.getItem(ADMIN_TOKEN_KEY)) throw Error('Entre novamente no painel administrativo antes de importar.');
+        if (!spreadsheetDraft.applied) {
+          const result = OrnelaSpreadsheet.validate(spreadsheetDraft.rows, products);
+          if (result.errors.length) throw Error(result.errors.join('\n'));
+          if (!result.records.length) throw Error('Todos os códigos já estão cadastrados. Nenhum saldo foi alterado.');
+          for (const product of result.records) products.push({...product,_ornelaId:makeId('produto')});
+          spreadsheetDraft.applied = true; spreadsheetDraft.count = result.records.length;
+          ensureProductIds();
+        }
+        status.textContent = 'Salvando os novos produtos no banco…';
+        await saveAppStateNow();
+        const count = spreadsheetDraft.count; spreadsheetDraft = null;
+        refreshProductCategorySelect(); renderCategories(); renderProducts(); renderResellers();
+        document.getElementById('productSpreadsheetPreview').innerHTML = ''; input.value = '';
+        status.textContent = `${count} produto(s) cadastrado(s) e salvo(s) no banco. Agora use a aba Fotos para enviar a pasta de imagens e relacionar pelo código.`;
+        button.textContent = 'Confirmar importação e salvar no banco';
+      } catch(error) {
+        status.textContent = error.message + (spreadsheetDraft?.applied ? '\nOs novos registros foram preservados neste painel. Clique em Tentar salvar novamente; não é necessário reenviar a planilha.' : '');
+        if (spreadsheetDraft?.applied) button.textContent = 'Tentar salvar novamente';
+        button.disabled = false;
+      } finally { input.disabled = Boolean(spreadsheetDraft?.applied); }
+    };
 
     form.addEventListener("submit", async event => {
       event.preventDefault();
