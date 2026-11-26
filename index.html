@@ -2821,13 +2821,13 @@
         <button class="btn btn-light" type="button" id="toggleAdmin">Acesso administrativo</button>
       </div>
     </nav>
-    <section id="ornelaMusic" hidden aria-label="Playlist da Ornela" style="width:min(480px,calc(100% - 32px));margin:0 auto 12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;font-size:12px">
-        <span>Playlist Ornela · Toque em Play para ouvir</span>
-        <button type="button" class="btn btn-light" onclick="toggleOrnelaMusic(false)" style="padding:5px 10px;font-size:12px">Fechar e desligar</button>
+    <section id="ornelaMusic" hidden aria-label="Playlist da Ornela" style="width:min(320px,calc(100% - 24px));margin:0 auto 6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;font-size:10px">
+        <span>♫ Playlist Ornela</span>
+        <button type="button" class="btn btn-light" onclick="toggleOrnelaMusic(false)" aria-label="Fechar e desligar música" title="Fechar e desligar música" style="padding:2px 8px;min-height:24px;font-size:14px">×</button>
       </div>
       <div id="ornelaMusicPlayer"></div>
-      <small style="font-size:10px;color:var(--muted)">Player fornecido pelo Spotify. Ao abrir, sua conexão é compartilhada com esse serviço.</small>
+      <small style="display:block;font-size:9px;line-height:1.2;color:var(--muted)">Player Spotify · Ao abrir, sua conexão é compartilhada com o serviço.</small>
     </section>
   </header>
 
@@ -4659,7 +4659,7 @@
         frame.src = 'https://open.spotify.com/embed/playlist/6MqVd2mIw55n6Lj4WMHGob?utm_source=generator';
         frame.title = 'Playlist da Ornela no Spotify';
         frame.width = '100%';
-        frame.height = '152';
+        frame.height = '80';
         frame.style.cssText = 'border:0;border-radius:12px;display:block';
         frame.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
         frame.allowFullscreen = true;
