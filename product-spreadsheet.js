@@ -63,17 +63,31 @@
     if (rows.length > 5001) throw Error('Importe até 5.000 linhas por arquivo.');
     return rows;
   }
-  function template(XLSX) {
+  function productRows(products = []) {
+    return products.map(p => [String(p.code ?? ''), String(p.name ?? ''), String(p.description ?? ''), String(p.category ?? ''), String(p.costPrice ?? ''), String(p.price ?? ''), String(p.promotionPrice ?? ''), Number(p.stock ?? 0), String(p.tag ?? ''), p.hidden ? 'Não' : 'Sim']);
+  }
+  function csv(products = []) {
+    const cell = value => {
+      let text = String(value ?? '');
+      if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    return '\uFEFF' + [headers, ...productRows(products)].map(row => row.map(cell).join(';')).join('\r\n') + '\r\n';
+  }
+  function template(XLSX, products = []) {
     const workbook = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet([headers]);
+    const rows = productRows(products);
+    const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     sheet['!cols'] = [22,40,65,22,15,15,22,12,20,12].map(wch => ({wch}));
     // Códigos devem permanecer texto, inclusive quando começam por zero.
-    for(let row=2; row<=501; row++) sheet['A'+row] = {t:'s',v:'',z:'@'};
-    sheet['!ref'] = 'A1:J501'; sheet['!autofilter'] = {ref:'A1:J501'};
+    const last = Math.max(501, rows.length + 101);
+    for(let row=2; row<=last; row++) sheet['A'+row] = {t:'s',v:rows[row-2]?.[0] || '',z:'@'};
+    sheet['!ref'] = 'A1:J' + last; sheet['!autofilter'] = {ref:'A1:J' + Math.max(1, rows.length+1)};
     XLSX.utils.book_append_sheet(workbook, sheet, 'Produtos');
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
       ['ORNELA — Instruções de importação'],
       ['Preencha apenas a aba Produtos, mantendo o cabeçalho na primeira linha.'],
+      ['Este modelo inclui todos os produtos carregados no painel, inclusive ocultos e sem estoque. Adicione os novos nas linhas seguintes.'],
       ['Obrigatórios: Código, Nome, Categoria e Preço. Estoque vazio será zero.'],
       ['Código deve estar como Texto para preservar zeros iniciais. Não use fórmulas.'],
       ['Preço e Custo: 89,90 ou 89.90. Não use separador de milhares.'],
@@ -88,5 +102,5 @@
     workbook.Sheets['Instruções']['!cols'] = [{wch:115}];
     return workbook;
   }
-  return {headers,normalize,validate,read,template};
+  return {headers,normalize,validate,read,template,productRows,csv};
 });

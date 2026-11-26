@@ -3237,7 +3237,7 @@
 
       <div class="admin-box" data-admin-panel="products">
         <h3>Importar produtos por Excel ou CSV</h3>
-        <p>Baixe o modelo, preencha os produtos e envie o arquivo para conferir antes de salvar. As fotos podem ser adicionadas depois, na aba Fotos, usando o mesmo código do produto.</p>
+        <p>Baixe o modelo com todos os produtos cadastrados, acrescente os novos nas próximas linhas e envie o arquivo para conferir antes de salvar. As fotos podem ser adicionadas depois, na aba Fotos, usando o mesmo código do produto.</p>
         <div class="xml-actions">
           <button class="btn btn-light" type="button" id="downloadProductXlsx">Baixar modelo Excel</button>
           <button class="btn btn-light" type="button" id="downloadProductCsv">Baixar modelo CSV</button>
@@ -6801,12 +6801,13 @@
     }
     document.getElementById('downloadProductXlsx').onclick = async () => {
       const status = document.getElementById('productSpreadsheetStatus');
-      try { const xlsx = await loadSpreadsheetLibrary(); const bytes = xlsx.write(OrnelaSpreadsheet.template(xlsx), {bookType:'xlsx',type:'array'}); downloadSpreadsheetBlob(new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'Modelo_Produtos_Ornela.xlsx'); status.textContent = 'Modelo Excel baixado. Preencha a aba Produtos; as orientações estão na aba Instruções.'; }
+      try { if (!adminDataReady) throw Error('Entre no painel e aguarde o carregamento dos produtos antes de baixar.'); const xlsx = await loadSpreadsheetLibrary(); const bytes = xlsx.write(OrnelaSpreadsheet.template(xlsx, products), {bookType:'xlsx',type:'array'}); downloadSpreadsheetBlob(new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'Modelo_Produtos_Ornela.xlsx'); status.textContent = `Modelo Excel baixado com ${products.length} produto(s), incluindo ocultos e sem estoque. Acrescente novos produtos nas linhas seguintes. Os códigos existentes serão mantidos sem alterações na importação.`; }
       catch(error) { status.textContent = error.message; }
     };
     document.getElementById('downloadProductCsv').onclick = () => {
-      downloadSpreadsheetBlob(new Blob(['\uFEFF' + OrnelaSpreadsheet.headers.join(';') + '\r\n'], {type:'text/csv;charset=utf-8'}), 'Modelo_Produtos_Ornela.csv');
-      document.getElementById('productSpreadsheetStatus').textContent = 'Modelo CSV baixado. Mantenha a primeira linha e separe as colunas por ponto e vírgula.';
+      if (!adminDataReady) { document.getElementById('productSpreadsheetStatus').textContent = 'Entre no painel e aguarde o carregamento dos produtos antes de baixar.'; return; }
+      downloadSpreadsheetBlob(new Blob([OrnelaSpreadsheet.csv(products)], {type:'text/csv;charset=utf-8'}), 'Modelo_Produtos_Ornela.csv');
+      document.getElementById('productSpreadsheetStatus').textContent = `Modelo CSV baixado com ${products.length} produto(s), incluindo ocultos e sem estoque. Mantenha o cabeçalho e acrescente novos produtos nas linhas seguintes. Códigos existentes não serão alterados.`;
     };
     document.getElementById('productSpreadsheetFile').onchange = async event => {
       const file = event.target.files[0], status = document.getElementById('productSpreadsheetStatus'), preview = document.getElementById('productSpreadsheetPreview'), button = document.getElementById('confirmProductSpreadsheet');

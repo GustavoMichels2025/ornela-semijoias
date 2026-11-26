@@ -42,3 +42,13 @@ test('Fórmulas e formatos não suportados são recusados',()=>{
   assert.throws(()=>importer.read(XLSX.write(workbook,{type:'array',bookType:'xlsx'}),'xlsx',XLSX),/fórmulas/);
   assert.throws(()=>importer.read(new Uint8Array(),'xls',XLSX),/\.xlsx/);
 });
+test('Modelos Excel e CSV incluem todo o cadastro, sem filtrar ocultos ou saldo zero',()=>{
+  const products=[{code:'00012',name:'Nome editado',description:'Peça; com "aspas"\ne detalhes',category:'Anéis',price:'89,90',costPrice:'20,00',promotionPrice:'79,90',stock:2,tag:'Promoção',hidden:false}, {code:'00013',name:'Oculto',category:'Brincos',price:'39,00',stock:0,hidden:true}];
+  const before=JSON.stringify(products);
+  const workbook=importer.template(XLSX,products);
+  const rows=importer.read(XLSX.write(workbook,{type:'array',bookType:'xlsx'}),'xlsx',XLSX);
+  assert.equal(rows[1][0],'00012');assert.equal(rows[1][1],'Nome editado');assert.equal(rows[1][6],'79,90');assert.equal(rows[2][0],'00013');assert.equal(rows[2][7],'0');assert.equal(rows[2][9],'Não');
+  const csvRows=importer.read(new TextEncoder().encode(importer.csv(products)),'csv',XLSX);
+  assert.equal(csvRows[1][2],products[0].description);assert.equal(csvRows[2][0],'00013');
+  assert.equal(importer.validate(csvRows,products).skipped.length,2);assert.equal(JSON.stringify(products),before);
+});
