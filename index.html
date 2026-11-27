@@ -3236,7 +3236,15 @@
         </div>
         <details style="margin:14px 0;font-size:12px;color:var(--muted)">
           <summary style="cursor:pointer;font-weight:700;color:#000">Configurações de impressão</summary>
-          <p style="line-height:1.8;margin-top:10px">Folha: 217 × 280 mm<br>Margens: 14 mm superior e inferior; 15 mm nas laterais<br>Grade: 4 colunas × 20 linhas = 80 etiquetas por folha<br>Espaço vertical: 1 mm<br>Largura de cada etiqueta: 44 mm<br>Espaço entre colunas: 3 mm<br>4ª coluna deslocada 1 mm para a direita<br>XML: uma etiqueta por unidade dos itens relacionados ao catálogo<br>Campos vazios: em branco</p>
+          <p>Edite as medidas em milímetros e clique em Aplicar medidas e salvar. A prévia será refeita com as novas medidas; ajustes manuais de texto na prévia serão substituídos.</p>
+          <div id="labelPrintFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:12px 0"></div>
+          <p id="labelPrintSummary"></p>
+          <div class="xml-actions">
+            <button class="btn btn-primary" type="button" id="applyLabelPrintSettings" onclick="applyLabelPrintSettings(this)">Aplicar medidas e salvar</button>
+            <button class="btn btn-light" type="button" onclick="renderLabelPrintSettings(true);invalidateCatalogLabels();document.getElementById('labelPrintSettingsStatus').textContent='Padrão preenchido. Clique em Aplicar medidas e salvar.'">Restaurar medidas padrão</button>
+          </div>
+          <p id="labelPrintSettingsStatus" role="status"></p>
+          <p>XML: uma etiqueta por unidade dos itens relacionados ao catálogo. Campos vazios: em branco.</p>
           <p>Imprima em tamanho real (100%), sem cabeçalhos e rodapés. Até 2.400 etiquetas por lote. Gere a prévia novamente após alterar a seleção. Ajustes no texto da prévia valem apenas para a impressão.</p>
         </details>
         <iframe id="catalogLabelsPreview" title="Prévia das etiquetas dos produtos do catálogo" hidden sandbox="allow-same-origin allow-modals" style="width:100%;height:75vh;min-height:450px;border:1px solid #ded4c5;border-radius:10px"></iframe>
@@ -5672,9 +5680,27 @@
         .slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR',{sensitivity:'base',numeric:true}));
     }
     function invalidateCatalogLabels() { document.getElementById('printCatalogLabels').disabled = true; }
+    function currentLabelPrintSettings() { return OrnelaLabels.settings(storeConfig.labelPrintSettings || {}); }
+    function renderLabelPrintSettings(reset=false) {
+      const config=reset?OrnelaLabels.settings():currentLabelPrintSettings();
+      const names={pageWidth:'Largura da folha (mm)',pageHeight:'Altura da folha (mm)',top:'Margem superior (mm)',bottom:'Margem inferior (mm)',left:'Margem esquerda (mm)',right:'Margem direita (mm)',columns:'Colunas',rows:'Linhas',labelWidth:'Largura da etiqueta (mm)',rowGap:'Espaço vertical (mm)',colGap:'Espaço entre colunas (mm)',offset:'Deslocar última coluna (mm)'};
+      document.getElementById('labelPrintFields').innerHTML=Object.entries(names).map(([key,name])=>`<label style="display:grid;gap:5px">${name}<input type="number" data-label-setting="${key}" step="${['columns','rows'].includes(key)?1:0.1}" min="${['columns','rows'].includes(key)?1:0}" value="${config[key]}" style="width:100%;min-width:0" oninput="invalidateCatalogLabels();document.getElementById('labelPrintSettingsStatus').textContent='Medidas alteradas. Clique em Aplicar medidas e salvar para atualizar o documento.'"></label>`).join('');
+      document.getElementById('labelPrintSummary').textContent=`${config.capacity} etiquetas por folha • altura calculada: ${config.labelHeight.toLocaleString('pt-BR',{maximumFractionDigits:2})} mm.`;
+    }
+    async function applyLabelPrintSettings(button) {
+      const status=document.getElementById('labelPrintSettingsStatus');button.disabled=true;
+      try {
+        const values={};document.querySelectorAll('[data-label-setting]').forEach(input=>values[input.dataset.labelSetting]=input.value);
+        const config=OrnelaLabels.settings(values);storeConfig.labelPrintSettings={};for(const key of Object.keys(OrnelaLabels.defaults))storeConfig.labelPrintSettings[key]=config[key];
+        renderLabelPrintSettings();updateCatalogLabelsStatus();
+        if(labelSelection.size)generateCatalogLabels();else {document.getElementById('catalogLabelsPreview').hidden=true;invalidateCatalogLabels();}
+        status.textContent='Medidas aplicadas ao documento. Salvando…';await saveAppStateNow();status.textContent='Medidas aplicadas e salvas no banco para as próximas impressões.';
+      }catch(error){status.textContent=error.message+' As medidas válidas aplicadas ficam neste painel. Confira e tente salvar novamente.';}
+      finally{button.disabled=false;}
+    }
     function updateCatalogLabelsStatus() {
       const total = [...labelSelection.values()].reduce((sum,qty)=>sum+qty,0);
-      document.getElementById('catalogLabelsStatus').textContent = `${labelProductsFiltered().length} produto(s) no filtro. ${labelSelection.size} selecionado(s) em todas as páginas • ${total} etiqueta(s) • ${Math.ceil(total/80)} folha(s).`;
+      document.getElementById('catalogLabelsStatus').textContent = `${labelProductsFiltered().length} produto(s) no filtro. ${labelSelection.size} selecionado(s) em todas as páginas • ${total} etiqueta(s) • ${Math.ceil(total/currentLabelPrintSettings().capacity)} folha(s).`;
     }
     function renderCatalogLabels() {
       const category = document.getElementById('labelCategory'), current = category.value;
@@ -5708,8 +5734,9 @@
       try {
         if(!adminDataReady)throw Error('Entre no painel e aguarde o carregamento do catálogo.');
         const labels=OrnelaLabels.collect(products,labelSelection,sellingPrice), frame=document.getElementById('catalogLabelsPreview');
-        invalidateCatalogLabels();frame.onload=()=>{document.getElementById('printCatalogLabels').disabled=false;};frame.srcdoc=OrnelaLabels.documentHtml(labels);frame.hidden=false;
-        document.getElementById('catalogLabelsStatus').textContent=`Prévia gerada: ${labels.length} etiqueta(s) em ${Math.ceil(labels.length/80)} folha(s). Confira os preços e imprima em 100%. Nenhum saldo foi alterado.`;
+        const config=currentLabelPrintSettings();
+        invalidateCatalogLabels();frame.onload=()=>{document.getElementById('printCatalogLabels').disabled=false;};frame.srcdoc=OrnelaLabels.documentHtml(labels,config);frame.hidden=false;
+        document.getElementById('catalogLabelsStatus').textContent=`Prévia gerada: ${labels.length} etiqueta(s) em ${Math.ceil(labels.length/config.capacity)} folha(s). Confira os preços e imprima em 100%. Nenhum saldo foi alterado.`;
       }catch(error){alert(error.message);}
     }
 
@@ -5726,6 +5753,7 @@
       updateDashboard();
 
       if (tabName === 'labels') {
+        renderLabelPrintSettings();
         renderCatalogLabels();
       }
 
