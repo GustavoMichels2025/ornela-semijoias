@@ -1963,12 +1963,12 @@
     }
 
     .reseller-operation.sale-operation {
-      grid-template-columns: minmax(120px, 1fr) minmax(120px, .8fr) minmax(220px, 2.8fr) 65px auto;
+      grid-template-columns: minmax(110px, 1fr) minmax(110px, .8fr) minmax(200px, 2.8fr) 65px 155px auto;
     }
     .sale-operation input, .sale-operation select { width: 100%; min-width: 0; }
     @media(max-width:800px) {
       .reseller-operation.sale-operation { grid-template-columns: minmax(0, 1fr) 75px; }
-      .sale-operation #saleReseller, .sale-operation #saleItemSearch, .sale-operation button { grid-column: 1 / -1; }
+      .sale-operation #saleReseller, .sale-operation #saleItemSearch, .sale-operation #salePaymentMethod, .sale-operation button { grid-column: 1 / -1; }
     }
 
     .transfer-product-preview {
@@ -3053,6 +3053,12 @@
             <input type="search" id="saleItemSearch" aria-label="Buscar peça por código ou descrição" placeholder="Código ou descrição da peça" autocomplete="off" oninput="renderSaleProducts()" onkeydown="if(event.key==='Enter'){event.preventDefault();renderSaleProducts();if(document.getElementById('saleProduct').value)document.getElementById('saleQty').focus()}">
             <select id="saleProduct"></select>
             <input type="number" id="saleQty" min="1" value="1" placeholder="Qtd.">
+            <select id="salePaymentMethod" aria-label="Método de pagamento da venda" required>
+              <option value="">Pagamento</option>
+              <option value="Pix">Pix</option>
+              <option value="Cartão de crédito">Cartão de crédito</option>
+              <option value="A pagar">A pagar</option>
+            </select>
             <button class="btn btn-primary" type="button" id="registerResellerSale">Registrar venda</button>
           </div>
 
@@ -4361,8 +4367,8 @@
             escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price), numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))
           ])) : '<div class="reseller-empty">Sem itens em estoque.</div>'}
           <h4 style="margin:20px 0 8px;">Histórico de vendas</h4>
-          ${sales.length ? panelSheet(["Data", "Código", "Produto", "Quantidade", "Total R$", "Situação"], sales.map(sale => [
-            escapeHtml(sale.date), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), sale.reversedAt ? "Estornada" : "Confirmada"
+          ${sales.length ? panelSheet(["Data", "Código", "Produto", "Quantidade", "Total R$", "Pagamento", "Situação"], sales.map(sale => [
+            escapeHtml(sale.date), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), escapeHtml(sale.paymentMethod || 'Não informado'), sale.reversedAt ? "Estornada" : "Confirmada"
           ])) : '<div class="reseller-empty">Nenhuma venda registrada.</div>'}
         </div>
       `;
@@ -7778,6 +7784,7 @@
       const reseller = resellers.find(item => item.id === saleReseller.value);
       const item = reseller?.inventory?.find(stock => stock.productKey === saleProduct.value);
       const qty = Number(document.getElementById("saleQty").value);
+      const paymentMethod = document.getElementById('salePaymentMethod').value;
 
       if (!reseller || !item) {
         alert("Selecione a revendedora e o item vendido.");
@@ -7789,6 +7796,11 @@
         return;
       }
 
+      if (!['Pix','Cartão de crédito','A pagar'].includes(paymentMethod)) {
+        alert('Selecione o método de pagamento: Pix, Cartão de crédito ou A pagar.');
+        document.getElementById('salePaymentMethod').focus();
+        return;
+      }
       const cycle=OrnelaCycles.ensure(reseller,makeId('ciclo'));
       item.qty -= qty;
       reseller.sales = reseller.sales || [];
@@ -7801,10 +7813,12 @@
         code: item.code || "",
         qty,
         unitPrice: item.price,
+        paymentMethod,
         total: brMoneyToNumber(item.price) * qty
       });
 
       document.getElementById("saleQty").value = "1";
+      document.getElementById('salePaymentMethod').value = '';
       renderResellers();
       alert("Venda registrada no relatório da revendedora.");
     });
