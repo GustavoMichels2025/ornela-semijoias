@@ -75,6 +75,12 @@ test('Todas as contas recebem pagamentos padrão e o método fica salvo na venda
     const s=setup();assert.equal((await s.request('POST',{action:'sale',productKey:'p1',qty:1,paymentMethod:method,saleId:'12345678-1234-1234-1234-123456789abc'})).statusCode,400);assert.equal(s.written,undefined);
   }
 });
+test('Nome simples fica somente na venda da revendedora sem criar cadastro de cliente',async()=>{
+  const s=setup();const result=await s.request('POST',{action:'sale',productKey:'p1',qty:1,paymentMethod:'A pagar',customerName:'  Ana   Maria  ',saleId:'12345678-1234-1234-1234-123456789abc'});
+  assert.equal(result.statusCode,200);assert.equal(s.written.resellers[0].sales[0].customerName,'Ana Maria');assert.equal(s.written.customers.length,1);assert.equal(s.written.resellers[1].sales.length,0);
+  const read=setup(false,s.written.resellers[0].sales);assert.equal(JSON.parse((await read.request('GET')).body).sales[0].customerName,'Ana Maria');
+  for(const name of ['x'.repeat(121),{name:'Ana'}]){const invalid=setup();assert.equal((await invalid.request('POST',{action:'sale',productKey:'p1',qty:1,paymentMethod:'Pix',customerName:name,saleId:'12345678-1234-1234-1234-123456789abc'})).statusCode,400);assert.equal(invalid.written,undefined);}
+});
 test('Estorno devolve saldo próprio, preserva histórico e exclui valor da comissão', async () => {
   const s = setup(false, [{ id: 'sale-1', productKey: 'p1', qty: 2, total: 98 }]);
   assert.equal((await s.request('POST', { action: 'reverse-sale', saleId: 'sale-1' })).statusCode, 200);

@@ -97,6 +97,9 @@ exports.handler = async event => {
       if (reseller.sales.some(sale => sale.id === saleId)) return reply(200, { ok: true });
       const paymentMethod = String(body.paymentMethod || '');
       if (!PAYMENT_METHODS.includes(paymentMethod)) return reply(400, { error: 'Selecione o pagamento: Pix, Cartão de crédito ou A pagar.' });
+      if (body.customerName != null && typeof body.customerName !== 'string') return reply(400, { error: 'Informe apenas o nome da cliente.' });
+      const customerName = String(body.customerName || '').trim().replace(/\s+/g, ' ');
+      if (customerName.length > 120) return reply(400, { error: 'O nome da cliente deve ter até 120 caracteres.' });
       const item = reseller.inventory?.find(i => i.productKey === body.productKey);
       if (!item || Number(item.qty) < qty) return reply(409, { error: 'Saldo insuficiente. Atualize seu estoque.' });
       const product = state.products?.find(p => p._ornelaId === item.productKey);
@@ -105,7 +108,7 @@ exports.handler = async event => {
       const cycle=cycles.ensure(reseller,crypto.randomUUID());
       item.qty = Number(item.qty) - qty;
       reseller.sales.unshift({ id: saleId, date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), productKey: item.productKey,
-        name: product?.name || item.name, code: product?.code || item.code || '', qty, unitPrice: item.price, total: price * qty, paymentMethod, source: 'revendedora',cycleId:cycle.id });
+        name: product?.name || item.name, code: product?.code || item.code || '', qty, unitPrice: item.price, total: price * qty, paymentMethod, customerName, source: 'revendedora',cycleId:cycle.id });
       const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(state)}::jsonb,updated_at=now() WHERE id=1 AND data=${originalState}::jsonb RETURNING id`;
       if (!changed.length) return reply(409, { error: 'O estoque mudou. Atualize e tente novamente.' });
       return reply(200, { ok: true });
@@ -118,7 +121,7 @@ exports.handler = async event => {
         const product = state.products?.find(p => p._ornelaId === item.productKey);
         return { productKey: item.productKey, code: item.code, name: product?.name || item.name, image: productPhoto(product), description: product?.description || '', qty: Number(item.qty || 0), price: item.price };
       }),
-      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,paymentMethod:s.paymentMethod || null,reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
+      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,paymentMethod:s.paymentMethod || null,customerName:s.customerName || '',reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
   } catch (error) {
     if (error.code === '23505') return reply(409, { error: 'Este login já está sendo usado.' });
     return reply(500, { error: 'Não foi possível concluir. Tente novamente ou fale com a loja.' });

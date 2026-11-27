@@ -3056,6 +3056,7 @@
 
           <h4 style="margin:22px 0 10px;">Registrar venda da revendedora</h4>
           <div class="reseller-operation sale-operation">
+            <input type="text" id="saleCustomerName" placeholder="Nome da cliente (opcional)" aria-label="Nome da cliente da revendedora" maxlength="120" autocomplete="off" style="grid-column:1/-1">
             <select id="saleReseller"></select>
             <input type="search" id="saleItemSearch" aria-label="Buscar peça por código ou descrição" placeholder="Código ou descrição da peça" autocomplete="off" oninput="renderSaleProducts()" onkeydown="if(event.key==='Enter'){event.preventDefault();renderSaleProducts();if(document.getElementById('saleProduct').value)document.getElementById('saleQty').focus()}">
             <select id="saleProduct"></select>
@@ -4379,8 +4380,8 @@
             escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price), numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))
           ])) : '<div class="reseller-empty">Sem itens em estoque.</div>'}
           <h4 style="margin:20px 0 8px;">Histórico de vendas</h4>
-          ${sales.length ? panelSheet(["Data", "Código", "Produto", "Quantidade", "Total R$", "Pagamento", "Situação"], sales.map(sale => [
-            escapeHtml(sale.date), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), escapeHtml(sale.paymentMethod || 'Não informado'), sale.reversedAt ? "Estornada" : "Confirmada"
+          ${sales.length ? panelSheet(["Data", "Cliente", "Código", "Produto", "Quantidade", "Total R$", "Pagamento", "Situação"], sales.map(sale => [
+            escapeHtml(sale.date), escapeHtml(sale.customerName || 'Não informado'), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), escapeHtml(sale.paymentMethod || 'Não informado'), sale.reversedAt ? "Estornada" : "Confirmada"
           ])) : '<div class="reseller-empty">Nenhuma venda registrada.</div>'}
         </div>
       `;
@@ -7804,6 +7805,8 @@
       const item = reseller?.inventory?.find(stock => stock.productKey === saleProduct.value);
       const qty = Number(document.getElementById("saleQty").value);
       const paymentMethod = document.getElementById('salePaymentMethod').value;
+      const customerName = document.getElementById('saleCustomerName').value.trim().replace(/\s+/g,' ');
+      if(customerName.length > 120){alert('O nome da cliente deve ter até 120 caracteres.');return;}
 
       if (!reseller || !item) {
         alert("Selecione a revendedora e o item vendido.");
@@ -7833,11 +7836,13 @@
         qty,
         unitPrice: item.price,
         paymentMethod,
+        customerName,
         total: brMoneyToNumber(item.price) * qty
       });
 
       document.getElementById("saleQty").value = "1";
       document.getElementById('salePaymentMethod').value = '';
+      document.getElementById('saleCustomerName').value = '';
       renderResellers();
       alert("Venda registrada no relatório da revendedora.");
     });
