@@ -3234,16 +3234,12 @@
           <button class="btn btn-primary" type="button" onclick="generateCatalogLabels()">Gerar prévia dos selecionados</button>
           <button class="btn btn-light" id="printCatalogLabels" type="button" disabled onclick="const frame=document.getElementById('catalogLabelsPreview');frame.contentWindow.focus();frame.contentWindow.print()">Imprimir etiquetas</button>
         </div>
-        <p style="font-size:12px;color:var(--muted)">Formato preservado: folha 217 × 280 mm, 4 colunas × 20 linhas, 80 etiquetas por folha, largura 44 mm. Imprima em tamanho real (100%), sem cabeçalhos e rodapés. Até 2.400 etiquetas por lote. Confira e gere a prévia novamente após alterar a seleção. Ajustes no texto da prévia valem apenas para a impressão.</p>
-        <iframe id="catalogLabelsPreview" title="Prévia das etiquetas dos produtos do catálogo" hidden sandbox="allow-same-origin allow-modals" style="width:100%;height:75vh;min-height:450px;border:1px solid #ded4c5;border-radius:10px"></iframe>
-        <details style="margin-top:22px">
-          <summary style="cursor:pointer;font-weight:600">Outras opções: gerador original por XML ou cadastro manual</summary>
-        <div class="xml-actions">
-          <a class="btn btn-light" href="https://etornela.netlify.app/" target="_blank" rel="noopener noreferrer">Abrir etiquetas em nova aba</a>
-        </div>
-        <p style="font-size:12px;color:var(--muted)">Este gerador mantém suas regras próprias: no XML, calcula o preço de venda pelo valor unitário × 4. Não sincroniza produtos nem preços com o catálogo. Confira os dados e a prévia antes de imprimir. O botão Salvar alterações do catálogo não salva as edições feitas neste gerador.</p>
-        <iframe id="ornelaLabelsFrame" title="Gerador de etiquetas Ornela" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-modals allow-downloads" style="display:block;width:100%;height:78vh;min-height:600px;border:1px solid #ded4c5;border-radius:10px;background:#f4f4f4"></iframe>
+        <details style="margin:14px 0;font-size:12px;color:var(--muted)">
+          <summary style="cursor:pointer;font-weight:700;color:#000">Configurações de impressão</summary>
+          <p style="line-height:1.8;margin-top:10px">Folha: 217 × 280 mm<br>Margens: 14 mm superior e inferior; 15 mm nas laterais<br>Grade: 4 colunas × 20 linhas = 80 etiquetas por folha<br>Espaço vertical: 1 mm<br>Largura de cada etiqueta: 44 mm<br>Espaço entre colunas: 3 mm<br>4ª coluna deslocada 1 mm para a direita<br>XML: uma etiqueta por unidade dos itens relacionados ao catálogo<br>Campos vazios: em branco</p>
+          <p>Imprima em tamanho real (100%), sem cabeçalhos e rodapés. Até 2.400 etiquetas por lote. Gere a prévia novamente após alterar a seleção. Ajustes no texto da prévia valem apenas para a impressão.</p>
         </details>
+        <iframe id="catalogLabelsPreview" title="Prévia das etiquetas dos produtos do catálogo" hidden sandbox="allow-same-origin allow-modals" style="width:100%;height:75vh;min-height:450px;border:1px solid #ded4c5;border-radius:10px"></iframe>
       </div>
 
       <div class="admin-box" data-admin-panel="photos">
@@ -5731,8 +5727,6 @@
 
       if (tabName === 'labels') {
         renderCatalogLabels();
-        const frame = document.getElementById('ornelaLabelsFrame');
-        if (!frame.getAttribute('src')) frame.src = 'https://etornela.netlify.app/';
       }
 
       if (tabName === "orders") {
