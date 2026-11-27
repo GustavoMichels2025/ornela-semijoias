@@ -39,7 +39,7 @@ test('Revendedora só recebe dados próprios, sem dados pessoais ou de outra con
   assert(!response.body.includes('Segunda')); assert(!response.body.includes('privado'));
 });
 test('Venda reduz somente estoque da identidade autenticada e mantém estoque da vitrine', async () => {
-  const s = setup(); const response = await s.request('POST', { action: 'sale', resellerId: 'r2', productKey: 'p1', qty: 2, saleId: '12345678-1234-1234-1234-123456789abc' });
+  const s = setup(); const response = await s.request('POST', { action: 'sale', resellerId: 'r2', productKey: 'p1', qty: 2, paymentMethod: 'Pix', saleId: '12345678-1234-1234-1234-123456789abc' });
   assert.equal(response.statusCode, 200);
   assert.equal(s.written.resellers[0].inventory[0].qty, 1);
   assert.equal(s.written.resellers[1].inventory[0].qty, 20);
@@ -49,10 +49,10 @@ test('Venda reduz somente estoque da identidade autenticada e mantém estoque da
 test('Quantidade excedente, token inválido e conflito não gravam venda', async () => {
   const s = setup();
   assert.equal((await s.request('GET', {}, 'invalid')).statusCode, 401);
-  assert.equal((await s.request('POST', { action: 'sale', productKey: 'p1', qty: 4, saleId: '12345678-1234-1234-1234-123456789abc' })).statusCode, 409);
+  assert.equal((await s.request('POST', { action: 'sale', productKey: 'p1', qty: 4, paymentMethod: 'Pix', saleId: '12345678-1234-1234-1234-123456789abc' })).statusCode, 409);
   assert.equal(s.written, undefined);
   const concurrent = setup(true);
-  assert.equal((await concurrent.request('POST', { action: 'sale', productKey: 'p1', qty: 1, saleId: '12345678-1234-1234-1234-123456789abc' })).statusCode, 409);
+  assert.equal((await concurrent.request('POST', { action: 'sale', productKey: 'p1', qty: 1, paymentMethod: 'Pix', saleId: '12345678-1234-1234-1234-123456789abc' })).statusCode, 409);
   assert.equal(concurrent.written, undefined);
 });
 test('Comissão por faixa aplica percentual ao total e respeita centavos', () => {
@@ -61,6 +61,18 @@ test('Comissão por faixa aplica percentual ao total e respeita centavos', () =>
     const result = commissionSummary([{total}]);
     assert.equal(result.rate, rate);
     assert.equal(result.amount, amount);
+  }
+});
+test('Todas as contas recebem pagamentos padrão e o método fica salvo na venda', async()=>{
+  const account=setup(), response=await account.request('GET');
+  assert.deepEqual(JSON.parse(response.body).paymentMethods,['Pix','Cartão de crédito','A pagar']);
+  for(const method of ['Pix','Cartão de crédito','A pagar']){
+    const s=setup();const result=await s.request('POST',{action:'sale',productKey:'p1',qty:1,paymentMethod:method,saleId:'12345678-1234-1234-1234-123456789abc'});
+    assert.equal(result.statusCode,200);assert.equal(s.written.resellers[0].sales[0].paymentMethod,method);assert.equal(s.written.resellers[0].inventory[0].qty,2);
+    const read=setup(false,s.written.resellers[0].sales);assert.equal(JSON.parse((await read.request('GET')).body).sales[0].paymentMethod,method);
+  }
+  for(const method of ['', 'Dinheiro']){
+    const s=setup();assert.equal((await s.request('POST',{action:'sale',productKey:'p1',qty:1,paymentMethod:method,saleId:'12345678-1234-1234-1234-123456789abc'})).statusCode,400);assert.equal(s.written,undefined);
   }
 });
 test('Estorno devolve saldo próprio, preserva histórico e exclui valor da comissão', async () => {

@@ -6,6 +6,7 @@ const { requireAdmin, sign, verify } = require('./utils/auth');
 const { json } = require('./utils/response');
 const { commissionSummary } = require('./utils/commission');
 const cycles = require('../../reseller-cycles');
+const PAYMENT_METHODS = ['Pix', 'Cartão de crédito', 'A pagar'];
 
 const reply = (status, body) => {
   const result = json(status, body);
@@ -94,6 +95,8 @@ exports.handler = async event => {
       if (!Number.isInteger(qty) || qty <= 0 || !/^[a-zA-Z0-9-]{16,80}$/.test(saleId)) return reply(400, { error: 'Informe uma quantidade válida.' });
       reseller.sales = reseller.sales || [];
       if (reseller.sales.some(sale => sale.id === saleId)) return reply(200, { ok: true });
+      const paymentMethod = String(body.paymentMethod || '');
+      if (!PAYMENT_METHODS.includes(paymentMethod)) return reply(400, { error: 'Selecione o pagamento: Pix, Cartão de crédito ou A pagar.' });
       const item = reseller.inventory?.find(i => i.productKey === body.productKey);
       if (!item || Number(item.qty) < qty) return reply(409, { error: 'Saldo insuficiente. Atualize seu estoque.' });
       const product = state.products?.find(p => p._ornelaId === item.productKey);
@@ -102,7 +105,7 @@ exports.handler = async event => {
       const cycle=cycles.ensure(reseller,crypto.randomUUID());
       item.qty = Number(item.qty) - qty;
       reseller.sales.unshift({ id: saleId, date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), productKey: item.productKey,
-        name: product?.name || item.name, code: product?.code || item.code || '', qty, unitPrice: item.price, total: price * qty, source: 'revendedora',cycleId:cycle.id });
+        name: product?.name || item.name, code: product?.code || item.code || '', qty, unitPrice: item.price, total: price * qty, paymentMethod, source: 'revendedora',cycleId:cycle.id });
       const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(state)}::jsonb,updated_at=now() WHERE id=1 AND data=${originalState}::jsonb RETURNING id`;
       if (!changed.length) return reply(409, { error: 'O estoque mudou. Atualize e tente novamente.' });
       return reply(200, { ok: true });
@@ -110,12 +113,12 @@ exports.handler = async event => {
     if (event.httpMethod !== 'GET') return reply(400, { error: 'Operação não permitida.' });
     const commission = commissionSummary(reseller.sales);
     const currentCycle=cycles.active(reseller);
-    return reply(200, { name: reseller.name, commission: commission.rate, commissionSummary: commission, cycle:currentCycle?{name:currentCycle.name,startedAt:currentCycle.startedAt}:null,
+    return reply(200, { name: reseller.name, paymentMethods: PAYMENT_METHODS, commission: commission.rate, commissionSummary: commission, cycle:currentCycle?{name:currentCycle.name,startedAt:currentCycle.startedAt}:null,
       inventory: (reseller.inventory || []).map(item => {
         const product = state.products?.find(p => p._ornelaId === item.productKey);
         return { productKey: item.productKey, code: item.code, name: product?.name || item.name, image: productPhoto(product), description: product?.description || '', qty: Number(item.qty || 0), price: item.price };
       }),
-      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
+      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,paymentMethod:s.paymentMethod || null,reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
   } catch (error) {
     if (error.code === '23505') return reply(409, { error: 'Este login já está sendo usado.' });
     return reply(500, { error: 'Não foi possível concluir. Tente novamente ou fale com a loja.' });
