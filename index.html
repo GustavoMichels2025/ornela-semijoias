@@ -12,6 +12,7 @@
   <script src="/reseller-cycles.js"></script>
   <script src="/product-spreadsheet.js"></script>
   <script src="/catalog-labels.js"></script>
+  <script src="/reseller-payments.js"></script>
 
   <style>
     :root {
@@ -4315,6 +4316,15 @@
       };
     }
 
+    async function settleAdminResellerSale(button) {
+      const method=await OrnelaPayments.chooseMethod(document);if(!method)return;
+      const reseller=resellers.find(r=>r.id===button.dataset.resellerId),sale=reseller?.sales?.find(s=>s.id===button.dataset.saleId);
+      if(!sale){alert('Venda não encontrada. Atualize o relatório.');return;}
+      button.disabled=true;
+      try { OrnelaPayments.settle(sale,method,'admin');await saveAppStateNow();renderResellerReport();alert('Pagamento confirmado. Nenhum estoque foi alterado.'); }
+      catch(error){alert(error.message+' Confira o relatório e salve novamente se necessário.');button.disabled=false;renderResellerReport();}
+    }
+
     function renderResellerStock() {
       const list = document.getElementById("resellerStockList");
       const query = normalizeCode(document.getElementById('resellerStockSearch')?.value || '');
@@ -4380,8 +4390,9 @@
             escapeHtml(item.code || "sem código"), escapeHtml(currentResellerItemName(item)), Number(item.qty || 0), escapeHtml(item.price), numberToBR(Number(item.qty || 0) * brMoneyToNumber(item.price))
           ])) : '<div class="reseller-empty">Sem itens em estoque.</div>'}
           <h4 style="margin:20px 0 8px;">Histórico de vendas</h4>
-          ${sales.length ? panelSheet(["Data", "Cliente", "Código", "Produto", "Quantidade", "Total R$", "Pagamento", "Situação"], sales.map(sale => [
-            escapeHtml(sale.date), escapeHtml(sale.customerName || 'Não informado'), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), escapeHtml(sale.paymentMethod || 'Não informado'), sale.reversedAt ? "Estornada" : "Confirmada"
+          ${sales.length ? panelSheet(["Data", "Cliente", "Código", "Produto", "Quantidade", "Total R$", "Pagamento", "Recebimento", "Pago em", "Situação", "Ações"], sales.map(sale => [
+            escapeHtml(sale.date), escapeHtml(sale.customerName || 'Não informado'), escapeHtml(sale.code || "sem código"), escapeHtml(sale.name), Number(sale.qty || 0), numberToBR(sale.total), escapeHtml(sale.paymentMethod || 'Não informado'), OrnelaPayments.status(sale), sale.paidAt ? escapeHtml(new Date(sale.paidAt).toLocaleString('pt-BR')) : '—', sale.reversedAt ? "Estornada" : "Confirmada",
+            OrnelaPayments.status(sale)==='A pagar'?`<button type="button" data-reseller-id="${escapeHtml(reseller.id)}" data-sale-id="${escapeHtml(sale.id)}" onclick="settleAdminResellerSale(this)">Marcar como pago</button>`:'—'
           ])) : '<div class="reseller-empty">Nenhuma venda registrada.</div>'}
         </div>
       `;

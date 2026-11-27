@@ -24,6 +24,7 @@ function setup(conflict = false, sales = []) {
     if (path === './utils/db') return { getSql: () => sql };
     if (path === './utils/commission') return require('../netlify/functions/utils/commission');
     if (path === '../../reseller-cycles') return require('../reseller-cycles');
+    if (path === '../../reseller-payments') return require('../reseller-payments');
     if (path === './utils/auth') return { requireAdmin: () => false, verify: token => token === 'valid' ? { role: 'reseller', resellerId: 'r1', version: 1 } : null };
     if (path === './utils/response') return { json: (statusCode, data) => ({ statusCode, body: JSON.stringify(data) }) };
     return require(path);
@@ -62,6 +63,16 @@ test('Comissão por faixa aplica percentual ao total e respeita centavos', () =>
     assert.equal(result.rate, rate);
     assert.equal(result.amount, amount);
   }
+});
+test('Quitação de A pagar não muda estoque, comissão ou duplica venda; só permite a própria conta',async()=>{
+  const sale={id:'sale-pending',productKey:'p1',qty:1,total:49,paymentMethod:'A pagar',customerName:'Ana'};
+  const s=setup(false,[sale]);assert.equal((await s.request('POST',{action:'settle-sale',saleId:sale.id,paymentMethod:'Pix'})).statusCode,200);
+  const updated=s.written.resellers[0].sales[0];assert.equal(updated.paymentMethod,'Pix');assert.equal(updated.paymentStatus,'paid');assert.ok(updated.paidAt);assert.equal(updated.originalPaymentMethod,'A pagar');assert.equal(updated.customerName,'Ana');assert.equal(s.written.resellers[0].sales.length,1);assert.equal(s.written.resellers[0].inventory[0].qty,3);assert.equal(s.written.products[0].stock,8);
+  const again=setup(false,[updated]);assert.equal((await again.request('POST',{action:'settle-sale',saleId:sale.id,paymentMethod:'Pix'})).statusCode,200);assert.equal(again.written,undefined);
+  assert.equal((await again.request('POST',{action:'settle-sale',saleId:'outra-conta',paymentMethod:'Pix'})).statusCode,404);
+  const invalid=setup(false,[sale]);assert.equal((await invalid.request('POST',{action:'settle-sale',saleId:sale.id,paymentMethod:'A pagar'})).statusCode,400);assert.equal(invalid.written,undefined);
+  const reversed=setup(false,[{...sale,reversedAt:'2026-11-27'}]);assert.equal((await reversed.request('POST',{action:'settle-sale',saleId:sale.id,paymentMethod:'Pix'})).statusCode,400);assert.equal(reversed.written,undefined);
+  const conflict=setup(true,[sale]);assert.equal((await conflict.request('POST',{action:'settle-sale',saleId:sale.id,paymentMethod:'Pix'})).statusCode,409);assert.equal(conflict.written,undefined);
 });
 test('Todas as contas recebem pagamentos padrão e o método fica salvo na venda', async()=>{
   const account=setup(), response=await account.request('GET');

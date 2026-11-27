@@ -7,6 +7,7 @@ const { json } = require('./utils/response');
 const { commissionSummary } = require('./utils/commission');
 const cycles = require('../../reseller-cycles');
 const PAYMENT_METHODS = ['Pix', 'Cartão de crédito', 'A pagar'];
+const payments = require('../../reseller-payments');
 
 const reply = (status, body) => {
   const result = json(status, body);
@@ -74,6 +75,17 @@ exports.handler = async event => {
     const originalState = JSON.stringify(state);
     const reseller = state?.resellers?.find(r => r.id === identity.resellerId && r.status !== 'Inativa');
     if (!reseller) return reply(403, { error: 'Acesso desativado.' });
+    if (event.httpMethod === 'POST' && body.action === 'settle-sale') {
+      const sale = (reseller.sales || []).find(s => s.id === body.saleId);
+      if (!sale) return reply(404, { error: 'Venda não encontrada na sua conta.' });
+      let changedPayment;
+      try { changedPayment = payments.settle(sale, body.paymentMethod, 'revendedora'); }
+      catch(error) { return reply(400, { error: error.message }); }
+      if (!changedPayment) return reply(200, { ok: true, alreadyPaid: true });
+      const changed = await sql`UPDATE public.app_state SET data=${JSON.stringify(state)}::jsonb,updated_at=now() WHERE id=1 AND data=${originalState}::jsonb RETURNING id`;
+      if (!changed.length) return reply(409, { error: 'Os dados mudaram. Atualize e confira o pagamento antes de tentar novamente.' });
+      return reply(200, { ok: true });
+    }
     if (event.httpMethod === 'POST' && body.action === 'reverse-sale') {
       const sale = (reseller.sales || []).find(s => s.id === body.saleId);
       if (!sale) return reply(404, { error: 'Venda não encontrada na sua conta.' });
@@ -121,7 +133,7 @@ exports.handler = async event => {
         const product = state.products?.find(p => p._ornelaId === item.productKey);
         return { productKey: item.productKey, code: item.code, name: product?.name || item.name, image: productPhoto(product), description: product?.description || '', qty: Number(item.qty || 0), price: item.price };
       }),
-      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,paymentMethod:s.paymentMethod || null,customerName:s.customerName || '',reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
+      sales: (reseller.sales || []).map(s => ({ id:s.id,date:s.date,name:s.name,code:s.code,qty:s.qty,unitPrice:s.unitPrice,total:s.total,paymentMethod:s.paymentMethod || null,customerName:s.customerName || '',paymentStatus:s.paymentStatus||null,paidAt:s.paidAt||null,reversedAt:s.reversedAt || null,image:productPhoto(state.products?.find(p => p._ornelaId === s.productKey)) })) });
   } catch (error) {
     if (error.code === '23505') return reply(409, { error: 'Este login já está sendo usado.' });
     return reply(500, { error: 'Não foi possível concluir. Tente novamente ou fale com a loja.' });
