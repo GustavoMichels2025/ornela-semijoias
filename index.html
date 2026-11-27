@@ -2826,6 +2826,13 @@
     #catalogLabelsList .label-select-all:hover { background:#f5ecd9; border-color:#9f7d42; }
     #catalogLabelsList .label-select-all:has(input:checked), #catalogLabelsList .label-select-all:has(input:indeterminate) { background:#e9dec8; border-color:#9f7d42; }
     #catalogLabelsList tbody tr:has(input[type="checkbox"]:checked) { background:#f1eadb; }
+    .admin-password-field { position:relative; width:100%; }
+    .login-card .admin-password-field input { width:100%; padding-right:48px; }
+    .login-card .admin-password-eye { position:absolute; right:5px; top:50%; transform:translateY(-50%); display:grid; place-items:center; width:38px; height:38px; padding:0; margin:0; border:0; border-radius:50%; background:transparent; color:#625749; cursor:pointer; }
+    .admin-password-eye:hover { background:rgba(128,98,37,.08); }
+    .admin-password-eye:focus-visible { outline:2px solid #806225; outline-offset:-2px; }
+    .admin-password-eye .password-eye-slash { display:none; }
+    .admin-password-eye[aria-pressed="true"] .password-eye-slash { display:block; }
   </style>
 </head>
 
@@ -3435,7 +3442,12 @@
       <div class="login-mark">O</div>
       <h2>Acesso administrativo</h2>
       <p>Entre com a senha administrativa para gerenciar a vitrine.</p>
-      <input type="password" id="adminPasswordInput" placeholder="Senha administrativa" autocomplete="current-password" required>
+      <div class="admin-password-field">
+        <input type="password" id="adminPasswordInput" placeholder="Senha administrativa" autocomplete="current-password" required>
+        <button type="button" id="toggleAdminPassword" class="admin-password-eye" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha" onclick="const input=document.getElementById('adminPasswordInput');const show=input.type==='password';input.type=show?'text':'password';this.setAttribute('aria-pressed',String(show));this.setAttribute('aria-label',show?'Ocultar senha':'Mostrar senha');this.title=show?'Ocultar senha':'Mostrar senha'">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="password-eye-slash" d="m3 3 18 18"/></svg>
+        </button>
+      </div>
       <div class="login-actions">
         <button class="btn btn-light" type="button" id="cancelAdminLogin">Cancelar</button>
         <button class="btn btn-primary" type="submit">Entrar no painel</button>
@@ -4513,6 +4525,9 @@
     function openAdminLogin() {
       adminLoginError.textContent = "";
       adminPasswordInput.value = "";
+      adminPasswordInput.type = 'password';
+      const eye = document.getElementById('toggleAdminPassword');
+      eye.setAttribute('aria-pressed','false'); eye.setAttribute('aria-label','Mostrar senha'); eye.title='Mostrar senha';
       adminLoginModal.classList.add("open");
       adminLoginModal.setAttribute("aria-hidden", "false");
       setTimeout(() => adminPasswordInput.focus(), 50);
