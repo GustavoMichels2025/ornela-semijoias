@@ -5,6 +5,16 @@
 # Configuração de publicação do Catálogo Ornela.
 
 [[redirects]]
+  from = "/admin"
+  to = "/?admin=1"
+  status = 302
+
+[[redirects]]
+  from = "/admin/"
+  to = "/?admin=1"
+  status = 302
+
+[[redirects]]
   from = "/api/state"
   to = "/.netlify/functions/state"
   status = 200
@@ -38,4 +48,3 @@
   from = "/*"
   to = "/index.html"
   status = 200
-

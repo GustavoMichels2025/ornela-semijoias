@@ -7176,6 +7176,10 @@
 
     adminLoginForm.addEventListener("submit", async event => {
       event.preventDefault();
+      const submit = adminLoginForm.querySelector('[type="submit"]');
+      if (submit.disabled) return;
+      submit.disabled = true;
+      adminLoginError.textContent = 'Conectando ao painel…';
 
       try {
         const response = await fetch(`${API_BASE}/api/login`, {
@@ -7184,9 +7188,9 @@
           body: JSON.stringify({ password: adminPasswordInput.value })
         });
 
-        if (!response.ok) throw new Error("Senha inválida.");
-
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(response.status === 401 ? 'Senha incorreta. Confira os caracteres pelo ícone de olho.' : (data.error || 'O serviço de acesso está indisponível. Tente novamente em instantes.'));
+        if (!data.token) throw new Error('O servidor não confirmou o acesso. Atualize a página e tente novamente.');
         sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
         sessionStorage.setItem(ADMIN_SESSION_KEY, "ok");
         await loadAppState();
@@ -7194,9 +7198,9 @@
         renderCustomers();
         openAdminPanel();
       } catch (error) {
-        adminLoginError.textContent = "Senha incorreta. Tente novamente.";
+        adminLoginError.textContent = error instanceof TypeError ? 'Não foi possível conectar ao site. Confira a internet e tente novamente.' : error.message;
         adminPasswordInput.select();
-      }
+      } finally { submit.disabled = false; }
     });
 
     document.getElementById("cancelAdminLogin").addEventListener("click", closeAdminLogin);
